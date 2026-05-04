@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard · Versiona · Brand Lab</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════════════════════
+   SISTEMA BASE DE DISEÑO — Brand Lab Dashboard Template
+   ══════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* Superficies */
+  --bg:      #080808;
+  --card:    #111111;
+  --card2:   #181818;
+  --border:  rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.14);
+
+  /* Texto */
+  --text:   #f0ede8;
+  --muted:  rgba(240,237,232,0.38);
+  --muted2: rgba(240,237,232,0.6);
+
+  /* Semáforo */
+  --green:  #4ade80; --gbg: rgba(74,222,128,0.1);  --gbrd: rgba(74,222,128,0.28);
+  --yellow: #facc15; --ybg: rgba(250,204,21,0.1);  --ybrd: rgba(250,204,21,0.28);
+  --red:    #f87171; --rbg: rgba(248,113,113,0.1); --rbrd: rgba(248,113,113,0.28);
+
+  /* Personas — colores por rol */
+  --col-a: #7F77DD; --bg-a: rgba(127,119,221,0.1);
+  --col-b: #378ADD; --bg-b: rgba(55,138,221,0.1);
+  --col-c: #D4537E; --bg-c: rgba(212,83,126,0.1);
+
+  /* Radios */
+  --r: 10px; --r-sm: 7px;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  padding: 20px;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 50% 40% at 10% 90%, rgba(127,119,221,0.04) 0%, transparent 60%),
+    radial-gradient(ellipse 30% 30% at 90% 10%, rgba(29,158,117,0.03) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ══════════════════════════════════════════════════════
+   TOP BAR
+   ══════════════════════════════════════════════════════ */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  position: relative;
+  z-index: 1;
+}
+
+.topbar-brand {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1.8px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.topbar-brand span {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-ghost {
+  font-size: 10px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 5px 10px;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  transition: all 0.15s;
+}
+.btn-ghost:hover { color: var(--text); border-color: var(--border2); }
+
+/* ══════════════════════════════════════════════════════
+   TABS
+   ══════════════════════════════════════════════════════ */
+.tabs {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  width: fit-content;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+  position: relative;
+  z-index: 1;
+}
+
+.tab {
+  padding: 6px 16px;
+  border-radius: var(--r-sm);
+  font-size: 11.5px;
+  cursor: pointer;
+  color: var(--muted);
+  transition: all 0.15s;
+  border: none;
+  background: transparent;
+  font-family: 'DM Sans', sans-serif;
+}
+
+.tab.active {
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--border2);
+}
+
+.view { display: none; position: relative; z-index: 1; }
+.view.active { display: block; }
+
+/* ══════════════════════════════════════════════════════
+   HEADER DEL ANÁLISIS
+   ══════════════════════════════════════════════════════ */
+.analysis-header {
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.ah-block { flex: 1; min-width: 240px; }
+
+.ah-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1.4px;
+  color: var(--muted);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: livepulse 2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes livepulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(74,222,128,0.45); }
+  50%       { opacity: 0.7; box-shadow: 0 0 0 5px rgba(74,222,128,0); }
+}
+
+.ah-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: 26px;
+  font-weight: 400;
+  letter-spacing: -0.4px;
+  line-height: 1.1;
+}
+
+.ah-sub {
+  font-size: 11px;
+  color: var(--muted2);
+  margin-top: 6px;
+}
+
+/* ══════════════════════════════════════════════════════
+   SECTION TITLE
+   ══════════════════════════════════════════════════════ */
+.sec-title {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 1.1px;
+  color: var(--muted);
+  font-weight: 500;
+  margin-bottom: 10px;
+  margin-top: 22px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ══════════════════════════════════════════════════════
+   KPI GRID
+   ══════════════════════════════════════════════════════ */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+@media (max-width: 640px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+
+.kpi {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 14px;
+  position: relative;
+  overflow: hidden;
+}
+
+.kpi::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 2px; height: 100%;
+}
+
+.kpi.k-green::before  { background: var(--green); }
+.kpi.k-blue::before   { background: var(--col-b); }
+.kpi.k-yellow::before { background: var(--yellow); }
+.kpi.k-purple::before { background: var(--col-a); }
+.kpi.k-red::before    { background: var(--red); }
+
+.kpi-val {
+  font-family: 'DM Serif Display', serif;
+  font-size: 28px;
+  letter-spacing: -0.5px;
+  line-height: 1;
+}
+
+.kpi-lbl {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 4px;
+  line-height: 1.35;
+}
+
+.kpi-delta {
+  font-size: 10px;
+  margin-top: 6px;
+  font-weight: 500;
+}
+
+.kpi-delta.up  { color: var(--green); }
+.kpi-delta.down{ color: var(--red); }
+.kpi-delta.neu { color: var(--muted2); }
+
+/* ══════════════════════════════════════════════════════
+   WIN / MISS LIST
+   ══════════════════════════════════════════════════════ */
+.win-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 6px;
+}
+
+.win-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 13px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+}
+
+.win-item.win-big  { border-color: var(--gbrd); background: var(--gbg); }
+.win-item.win-warn { border-color: var(--ybrd); background: var(--ybg); }
+.win-item.win-miss { border-color: var(--rbrd); background: var(--rbg); }
+
+.win-icon  { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+.win-body  { flex: 1; }
+.win-title { font-size: 12px; font-weight: 500; margin-bottom: 2px; }
+.win-desc  { font-size: 10.5px; color: var(--muted); line-height: 1.45; }
+.win-tag   { font-size: 9px; padding: 1px 6px; border-radius: 20px; background: var(--card2); color: var(--muted2); border: 1px solid var(--border); margin-top: 5px; display: inline-block; }
+
+/* ══════════════════════════════════════════════════════
+   BARRAS DE PROGRESO POR CLIENTE
+   ══════════════════════════════════════════════════════ */
+.client-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.cb-item {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 11px 14px;
+  cursor: default;
+  transition: border-color 0.15s;
+}
+.cb-item:hover { border-color: var(--border2); }
+
+.cb-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  gap: 8px;
+}
+
+.cb-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+
+.cb-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.cb-dot.green  { background: var(--green);  box-shadow: 0 0 5px var(--green); }
+.cb-dot.yellow { background: var(--yellow); box-shadow: 0 0 5px var(--yellow); }
+.cb-dot.red    { background: var(--red);    box-shadow: 0 0 5px var(--red); }
+
+.cb-name  { font-size: 12.5px; font-weight: 500; }
+.cb-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.cb-pct   { font-size: 12px; font-weight: 500; }
+
+.cb-status {
+  font-size: 9px; padding: 2px 7px; border-radius: 20px; font-weight: 500; white-space: nowrap;
+}
+.cs-done { background: var(--gbg);  color: var(--green);  border: 1px solid var(--gbrd); }
+.cs-proc { background: var(--ybg);  color: var(--yellow); border: 1px solid var(--ybrd); }
+.cs-pend { color: var(--muted2); border: 1px solid var(--border); background: var(--card2); }
+.cs-red  { background: var(--rbg);  color: var(--red);    border: 1px solid var(--rbrd); }
+
+.pb-bg   { height: 4px; background: var(--card2); border-radius: 2px; overflow: hidden; border: 1px solid var(--border); }
+.pb-fill { height: 100%; border-radius: 2px; transition: width 0.6s cubic-bezier(.25,.1,.25,1); }
+
+.cb-detail { font-size: 10px; color: var(--muted); margin-top: 6px; line-height: 1.45; }
+.cb-next   { font-size: 9.5px; color: var(--muted2); margin-top: 4px; display: flex; align-items: center; gap: 5px; }
+.cb-next::before { content: '→'; color: var(--col-a); font-weight: 600; }
+
+/* ══════════════════════════════════════════════════════
+   DISTRIBUCIÓN (stack bars)
+   ══════════════════════════════════════════════════════ */
+.dist-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+@media (max-width: 600px) { .dist-grid { grid-template-columns: 1fr; } }
+
+.dist-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 13px;
+}
+
+.dist-title {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.dist-title small { font-size: 9px; color: var(--muted); font-weight: 400; }
+
+.stack-bar {
+  display: flex;
+  height: 8px;
+  background: var(--card2);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+}
+.stack-seg { height: 100%; transition: flex 0.4s; }
+
+.stack-legend { display: flex; flex-direction: column; gap: 5px; }
+.sl-row { display: flex; align-items: center; gap: 7px; font-size: 10.5px; }
+.sl-dot { width: 7px; height: 7px; border-radius: 2px; flex-shrink: 0; }
+.sl-name { color: var(--muted2); flex: 1; }
+.sl-val  { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* ══════════════════════════════════════════════════════
+   INSIGHTS
+   ══════════════════════════════════════════════════════ */
+.insights {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+@media (max-width: 600px) { .insights { grid-template-columns: 1fr; } }
+
+.insight-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 13px;
+}
+.ic-label { font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.9px; color: var(--muted); margin-bottom: 8px; font-weight: 500; }
+.ic-item  { display: flex; align-items: flex-start; gap: 7px; margin-bottom: 6px; font-size: 11px; line-height: 1.4; }
+.ic-item:last-child { margin-bottom: 0; }
+.ic-dot   { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+.ic-dot.g { background: var(--green); }
+.ic-dot.y { background: var(--yellow); }
+.ic-dot.r { background: var(--red); }
+
+/* ══════════════════════════════════════════════════════
+   FLUJO DE TAREAS
+   ══════════════════════════════════════════════════════ */
+.prio-section { margin-bottom: 18px; }
+
+.prio-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--border);
+}
+
+.prio-dot {
+  width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+}
+.prio-dot.red    { background: var(--red);    box-shadow: 0 0 7px var(--red);    animation: pulse 1.4s ease-in-out infinite; }
+.prio-dot.yellow { background: var(--yellow); box-shadow: 0 0 7px var(--yellow); }
+.prio-dot.green  { background: var(--green);  box-shadow: 0 0 7px var(--green); }
+
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+.prio-title { font-size: 13px; font-weight: 500; }
+.prio-cnt   { font-size: 10px; color: var(--muted); margin-left: auto; }
+
+/* Tareas */
+.tasks-list { display: flex; flex-direction: column; gap: 4px; }
+
+.task {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  padding: 8px 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  transition: all 0.15s;
+}
+.task:hover { border-color: var(--border2); }
+.task.t-done   { opacity: 0.38; }
+.task.t-red    { border-left: 2px solid var(--red);    border-radius: 0 var(--r-sm) var(--r-sm) 0; background: var(--rbg); }
+.task.t-yellow { border-left: 2px solid var(--yellow); border-radius: 0 var(--r-sm) var(--r-sm) 0; background: var(--ybg); }
+.task.t-green  { border-left: 2px solid var(--green);  border-radius: 0 var(--r-sm) var(--r-sm) 0; background: var(--gbg); }
+
+/* Checkbox */
+.chk {
+  width: 14px; height: 14px;
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 3px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 8px;
+  transition: all 0.15s;
+}
+.chk.done { background: var(--gbg); border-color: var(--green); color: var(--green); }
+.chk.ip   { background: var(--ybg); border-color: var(--yellow); color: var(--yellow); }
+
+.task-main { flex: 1; min-width: 0; }
+.ttext { font-size: 11.5px; line-height: 1.4; }
+.ttext.done { text-decoration: line-through; color: var(--muted); }
+.brief-p { font-size: 9px; color: var(--muted); margin-top: 2px; font-style: italic; }
+
+.tmeta { display: flex; gap: 3px; margin-top: 3px; flex-wrap: wrap; align-items: center; }
+
+.op { font-size: 8px; padding: 1px 5px; border-radius: 20px; font-weight: 500; }
+.op-a { background: var(--bg-a); color: var(--col-a); }
+.op-b { background: var(--bg-b); color: var(--col-b); }
+.op-c { background: var(--bg-c); color: var(--col-c); }
+
+.ctag { font-size: 8px; padding: 1px 5px; border-radius: 4px; background: var(--card2); color: var(--muted); border: 1px solid var(--border); }
+
+.tag     { font-size: 7.5px; padding: 1px 5px; border-radius: 4px; font-weight: 500; }
+.tag-r   { background: var(--rbg); color: var(--red); }
+.tag-ip  { background: var(--ybg); color: var(--yellow); }
+.tag-done{ background: var(--gbg); color: var(--green); }
+
+.tdel {
+  font-size: 9px; color: var(--muted); cursor: pointer; padding: 2px 3px;
+  opacity: 0; transition: opacity 0.15s; background: transparent; border: none; flex-shrink: 0;
+}
+.task:hover .tdel { opacity: 0.5; }
+.tdel:hover { color: var(--red) !important; opacity: 1 !important; }
+
+/* Añadir tarea */
+.add-row { display: flex; gap: 5px; margin-top: 6px; }
+.add-in {
+  flex: 1;
+  background: var(--card2);
+  border: 1px solid var(--border2);
+  border-radius: var(--r-sm);
+  padding: 6px 9px;
+  color: var(--text);
+  font-size: 11px;
+  outline: none;
+  font-family: 'DM Sans', sans-serif;
+  transition: border-color 0.15s;
+}
+.add-in:focus { border-color: var(--col-a); }
+.add-in::placeholder { color: var(--muted); }
+
+.add-btn {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid var(--border2);
+  border-radius: var(--r-sm);
+  padding: 6px 12px;
+  color: var(--text);
+  font-size: 11px;
+  cursor: pointer;
+  font-weight: 500;
+  white-space: nowrap;
+  font-family: 'DM Sans', sans-serif;
+  transition: background 0.15s;
+}
+.add-btn:hover { background: rgba(255,255,255,0.12); }
+
+/* ══════════════════════════════════════════════════════
+   VISTA POR PERSONA
+   ══════════════════════════════════════════════════════ */
+.psec { margin-bottom: 14px; }
+
+.phead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 7px;
+  padding: 10px 13px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+}
+
+.pav {
+  width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 500; flex-shrink: 0;
+}
+.av-a { background: var(--bg-a); color: var(--col-a); }
+.av-b { background: var(--bg-b); color: var(--col-b); }
+.av-c { background: var(--bg-c); color: var(--col-c); }
+
+.pname   { font-size: 13px; font-weight: 500; }
+.prole   { font-size: 9.5px; color: var(--muted); }
+.pcnt    { margin-left: auto; font-size: 9.5px; padding: 2px 7px; border-radius: 20px; background: var(--card2); color: var(--muted); border: 1px solid var(--border); }
+
+.ptlist  { display: flex; flex-direction: column; gap: 3px; }
+.ptask   { display: flex; align-items: flex-start; gap: 7px; padding: 7px 9px; background: var(--card); border: 1px solid var(--border); border-radius: var(--r-sm); transition: all 0.15s; }
+.ptask:hover  { border-color: var(--border2); }
+.ptask.pt-done{ opacity: 0.38; }
+.ptask.pt-r   { border-left: 2px solid var(--red);    border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+.ptask.pt-y   { border-left: 2px solid var(--yellow); border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+.ptask.pt-g   { border-left: 2px solid var(--green);  border-radius: 0 var(--r-sm) var(--r-sm) 0; }
+
+.padd-row { display: flex; gap: 5px; margin-top: 6px; }
+
+/* ══════════════════════════════════════════════════════
+   TEAM CARDS
+   ══════════════════════════════════════════════════════ */
+.team-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 6px;
+}
+@media (max-width: 700px) { .team-grid { grid-template-columns: 1fr; } }
+
+.team-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 14px;
+  position: relative;
+  overflow: hidden;
+}
+.team-card::before { content: ''; position: absolute; top: 0; left: 0; width: 2px; height: 100%; }
+.team-card.tc-a::before { background: var(--col-a); }
+.team-card.tc-b::before { background: var(--col-b); }
+.team-card.tc-c::before { background: var(--col-c); }
+
+.tc-head    { display: flex; align-items: center; gap: 10px; margin-bottom: 11px; }
+.tc-av      { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11.5px; font-weight: 500; flex-shrink: 0; }
+.tc-name    { font-size: 13px; font-weight: 500; line-height: 1.1; }
+.tc-role    { font-size: 9.5px; color: var(--muted); margin-top: 2px; }
+.tc-stat    { display: flex; justify-content: space-between; font-size: 10.5px; padding: 5px 0; border-top: 1px solid var(--border); }
+.tc-stat:first-of-type { border-top: none; padding-top: 0; }
+.tc-stat span:first-child { color: var(--muted); }
+.tc-stat span:last-child  { color: var(--text); font-weight: 500; font-variant-numeric: tabular-nums; }
+.tc-focus   { font-size: 10.5px; color: var(--text); font-weight: 500; text-align: right; }
+</style>
+</head>
+<body>
+
+<!-- ═══ TOP BAR ═══ -->
+<div class="topbar">
+  <div class="topbar-brand">Brand Lab PDB · <span id="client-label">Cliente</span></div>
+  <div class="topbar-actions">
+    <button class="btn-ghost" onclick="logout()">Cerrar sesión</button>
+  </div>
+</div>
+
+<!-- ═══ TABS ═══ -->
+<div class="tabs">
+  <button class="tab active" onclick="showTab('analisis')">Análisis semanal</button>
+  <button class="tab" onclick="showTab('flujo')">Flujo activo</button>
+  <button class="tab" onclick="showTab('personas')">Por persona</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     TAB: ANÁLISIS
+     ══════════════════════════════════════════════════════ -->
+<div id="tab-analisis" class="view active">
+
+  <div class="analysis-header">
+    <div class="ah-block">
+      <div class="ah-label"><span class="live-dot"></span><span id="periodo-label">Periodo</span></div>
+      <div class="ah-title" id="analisis-title">Análisis semanal</div>
+      <div class="ah-sub" id="analisis-sub">Subtítulo del periodo</div>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi-grid" id="kpi-grid"></div>
+
+  <!-- Logros y alertas -->
+  <div class="sec-title">Semáforo de la semana</div>
+  <div class="win-list" id="win-list"></div>
+
+  <!-- Clientes / entregables -->
+  <div class="sec-title">Estado de entregables</div>
+  <div class="client-bars" id="client-bars"></div>
+
+  <!-- Distribución de carga -->
+  <div class="sec-title">Distribución del equipo</div>
+  <div class="dist-grid" id="dist-grid"></div>
+
+  <!-- Carga por persona -->
+  <div class="sec-title">Carga por persona</div>
+  <div class="team-grid" id="team-grid"></div>
+
+  <!-- Insights -->
+  <div class="sec-title">Foco para esta semana</div>
+  <div class="insights" id="insights"></div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     TAB: FLUJO
+     ══════════════════════════════════════════════════════ -->
+<div id="tab-flujo" class="view">
+
+  <div class="prio-section">
+    <div class="prio-header">
+      <div class="prio-dot red"></div>
+      <div class="prio-title">Urgente — atender esta semana</div>
+      <div class="prio-cnt" id="red-cnt"></div>
+    </div>
+    <div class="tasks-list" id="red-tasks"></div>
+    <div class="add-row">
+      <input class="add-in" id="ai-red" placeholder="+ tarea urgente…" onkeydown="if(event.key==='Enter')addTask('red')">
+      <button class="add-btn" onclick="addTask('red')">Agregar</button>
+    </div>
+  </div>
+
+  <div class="prio-section">
+    <div class="prio-header">
+      <div class="prio-dot yellow"></div>
+      <div class="prio-title">En proceso — seguimiento</div>
+      <div class="prio-cnt" id="yel-cnt"></div>
+    </div>
+    <div class="tasks-list" id="yel-tasks"></div>
+    <div class="add-row">
+      <input class="add-in" id="ai-yel" placeholder="+ tarea de seguimiento…" onkeydown="if(event.key==='Enter')addTask('yellow')">
+      <button class="add-btn" onclick="addTask('yellow')">Agregar</button>
+    </div>
+  </div>
+
+  <div class="prio-section">
+    <div class="prio-header">
+      <div class="prio-dot green"></div>
+      <div class="prio-title">Completado / lanzado</div>
+      <div class="prio-cnt" id="green-cnt"></div>
+    </div>
+    <div class="tasks-list" id="green-tasks"></div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     TAB: POR PERSONA
+     ══════════════════════════════════════════════════════ -->
+<div id="tab-personas" class="view" id="personas-view"></div>
+
+
+<!-- ══════════════════════════════════════════════════════
+     SCRIPT — DATOS Y LÓGICA
+     ══════════════════════════════════════════════════════ -->
+<script>
+/* ╔══════════════════════════════════════════════════════╗
+   ║  SECCIÓN DE CONFIGURACIÓN — edita aquí por cliente  ║
+   ╚══════════════════════════════════════════════════════╝ */
+
+const CONFIG = {
+  // ── Identidad ────────────────────────────────────────
+  clientName:   'Versiona',
+  sessionKey:   'bl_access_versiona',   // mismo que en login.html
+  loginFile:    'index.html',           // archivo de login
+
+  // ── Período ──────────────────────────────────────────
+  periodo:       'Semana 28 abril — 4 mayo',
+  analisisTitulo:'Análisis semanal\nde cuentas y equipo',
+  analisisSub:   'Bajío · 8 cuentas activas · 3 personas',
+
+  // ── KPIs ─────────────────────────────────────────────
+  kpis: [
+    { val: '5/6',  lbl: 'Clientes con avance esta semana', delta: '↑ Buena semana',    trend: 'up',  color: 'k-green' },
+    { val: '100%', lbl: 'Smash Burger — entregado',        delta: '↑ Deadline cumplido', trend: 'up', color: 'k-purple' },
+    { val: '75%',  lbl: 'Evolve — lanzamiento ads',         delta: '↑ Cliente nuevo',  trend: 'up',  color: 'k-blue' },
+    { val: '3/4',  lbl: 'Videos MX Travel listos',          delta: '→ Falta 1',        trend: 'neu', color: 'k-yellow' },
+  ],
+
+  // ── Semáforo ─────────────────────────────────────────
+  wins: [
+    { type: 'win-big',  icon: '🏆', title: 'Smash Burger — entrega 100% completada', desc: '4 reels + galería 30 fotos antes del deadline.', tag: 'Smash Burger' },
+    { type: 'win-big',  icon: '🚀', title: 'Evolve Compact — de cero a ads en una semana', desc: 'Redes arrancadas, videos publicados, campaña activa.', tag: 'Evolve' },
+    { type: 'win-warn', icon: '⚠', title: 'Altavia — stories de negocios sin reactivar', desc: 'Lleva semanas parado. Prioridad esta semana.', tag: 'Altavia' },
+    { type: 'win-miss', icon: '✕', title: 'SG — landing sin arrancar', desc: 'Semanas en pendiente. Arrancar sin falta.', tag: 'SG' },
+  ],
+
+  // ── Entregables por cuenta ────────────────────────────
+  entregables: [
+    { name: 'Smash Burger', pct: 100, dot: 'green', status: 'cs-done', statusLbl: 'Entregado', detail: '4 reels + 30 fotos. Aniversario 1 mayo cubierto.', next: '' },
+    { name: 'Evolve Compact', pct: 75, dot: 'yellow', status: 'cs-proc', statusLbl: 'En lanzamiento', detail: 'Campaña activa. Monitorear resultados.', next: 'Revisar métricas de ads' },
+    { name: 'MX Travel', pct: 80, dot: 'yellow', status: 'cs-proc', statusLbl: 'En proceso', detail: '3/4 videos listos.', next: 'Terminar 4to video' },
+    { name: 'Altavia', pct: 30, dot: 'red', status: 'cs-red', statusLbl: 'Bloqueado', detail: 'Stories pausadas. Campaña esperando autorización.', next: 'Reactivar stories urgente' },
+    { name: 'SG', pct: 10, dot: 'red', status: 'cs-red', statusLbl: 'Retrasado', detail: 'Landing sin arrancar.', next: 'Arrancar landing esta semana' },
+    { name: 'La Chula', pct: 60, dot: 'yellow', status: 'cs-proc', statusLbl: 'En seguimiento', detail: 'Campaña activa. Contenido día del niño.', next: 'Videos trends (2)' },
+  ],
+
+  // ── Distribución ─────────────────────────────────────
+  distribucion: {
+    personas: [
+      { name: 'Ek',     color: 'var(--col-b)', pct: 40, desc: 'Operación · ads · producción' },
+      { name: 'Arturo', color: 'var(--col-a)', pct: 38, desc: 'Dirección · comunicación' },
+      { name: 'Diego',  color: 'var(--col-c)', pct: 22, desc: 'PM · edición' },
+    ],
+    estados: [
+      { name: 'Completadas', color: 'var(--green)',  pct: 18 },
+      { name: 'En progreso', color: 'var(--yellow)', pct: 12 },
+      { name: 'Pendiente',   color: 'var(--muted2)', pct: 70 },
+    ],
+  },
+
+  // ── Team cards ────────────────────────────────────────
+  team: [
+    { id: 'a', key: 'tc-a', av: 'av-a', initial: 'A', name: 'Arturo', role: 'Dirección · Comunicación', clientes: 8, pendientes: 14, foco: 'AO · Comunicación' },
+    { id: 'b', key: 'tc-b', av: 'av-b', initial: 'Ek', name: 'Ek', role: 'Operación · Producción', clientes: 7, pendientes: 16, foco: 'Evolve · Altavia ads' },
+    { id: 'c', key: 'tc-c', av: 'av-c', initial: 'D', name: 'Diego', role: 'PM · Edición', clientes: 5, pendientes: 9, foco: 'SG landing · Gaby' },
+  ],
+
+  // ── Insights ──────────────────────────────────────────
+  insights: [
+    {
+      label: 'Para cerrar bien',
+      items: [
+        { dot: 'g', text: '4to video MX Travel — único pendiente' },
+        { dot: 'g', text: 'Short reel y long reel de 3 Años' },
+        { dot: 'g', text: 'Edición de Editora — entregar esta semana' },
+        { dot: 'g', text: 'Propuesta AO / JLFC $5k/mes' },
+      ],
+    },
+    {
+      label: 'Para no perder momentum',
+      items: [
+        { dot: 'r', text: 'Altavia — reactivar stories + esperar auth campaña' },
+        { dot: 'r', text: 'SG — arrancar landing sin falta' },
+        { dot: 'y', text: 'Evolve — monitorear campaña activa' },
+        { dot: 'y', text: 'Gaby — coordinar shoot con Diego y Javier' },
+      ],
+    },
+  ],
+};
+
+/* ╔══════════════════════════════════════════════════════╗
+   ║  DATOS DE TAREAS — edita aquí por semana            ║
+   ╚══════════════════════════════════════════════════════╝ */
+
+const OWNER_DEF = {
+  a: { label: 'Arturo', cls: 'op-a' },
+  b: { label: 'Ek',     cls: 'op-b' },
+  c: { label: 'Diego',  cls: 'op-c' },
+};
+
+const TASKS = [
+  // Urgentes (red)
+  { id:'r1', t:'Altavia — reactivar stories de negocios', client:'Altavia', prio:'red',    owners:['a','b','c'], status:'pend', brief:'Prioridad. No puede seguir parado.' },
+  { id:'r2', t:'Altavia — arrancar campaña cuando Diego autorice', client:'Altavia', prio:'red', owners:['b'], status:'pend', brief:'Esperando autorización.' },
+  { id:'r3', t:'SG — arrancar landing esta semana sin falta', client:'SG', prio:'red', owners:['c','a'], status:'pend', brief:'Semanas en pendiente. Arrancar ya.' },
+
+  // Completados (green)
+  { id:'g1', t:'Smash Burger — 4 reels + 30 fotos entregados ✓', client:'Smash Burger', prio:'green', owners:['a','c','b'], status:'done', brief:'' },
+  { id:'g2', t:'Evolve — redes arrancadas y campaña en lanzamiento ✓', client:'Evolve Compact', prio:'green', owners:['b'], status:'done', brief:'' },
+
+  // En proceso (yellow)
+  { id:'y1', t:'MX Travel — terminar 4to video (3/4 listos)', client:'MX Travel', prio:'yellow', owners:['b'], status:'pend', brief:'Solo falta 1.' },
+  { id:'y2', t:'MX Travel — avanzar contenido general', client:'MX Travel', prio:'yellow', owners:['a','b'], status:'pend', brief:'' },
+  { id:'y3', t:'Editora — terminar edición y entregar', client:'Editora', prio:'yellow', owners:['c','b'], status:'ip', brief:'Material en edición activa.' },
+  { id:'y4', t:'La Chula — seguimiento campaña', client:'La Chula', prio:'yellow', owners:['a'], status:'pend', brief:'' },
+  { id:'y5', t:'La Chula — videos trends (2)', client:'La Chula', prio:'yellow', owners:['c'], status:'pend', brief:'' },
+  { id:'y6', t:'AO / JLFC — cerrar propuesta $5k/mes', client:'AO/JLFC', prio:'yellow', owners:['a','c'], status:'pend', brief:'En negociación.' },
+  { id:'y7', t:'Gaby — coordinar shoot con Diego y Javier', client:'Gaby', prio:'yellow', owners:['c'], status:'pend', brief:'Shoot por agendar.' },
+];
+
+// Tareas extra por persona (no vinculadas al listado global)
+const PEXTRA = { a: [], b: [], c: [] };
+
+
+/* ══════════════════════════════════════════════════════
+   AUTENTICACIÓN
+   ══════════════════════════════════════════════════════ */
+if (sessionStorage.getItem(CONFIG.sessionKey) !== 'ok') {
+  window.location.href = CONFIG.loginFile;
+}
+
+function logout() {
+  sessionStorage.removeItem(CONFIG.sessionKey);
+  window.location.href = CONFIG.loginFile;
+}
+
+
+/* ══════════════════════════════════════════════════════
+   RENDER — ANÁLISIS
+   ══════════════════════════════════════════════════════ */
+function renderAnalisis() {
+  // Encabezado
+  document.getElementById('client-label').textContent = CONFIG.clientName;
+  document.getElementById('periodo-label').textContent = CONFIG.periodo;
+  document.getElementById('analisis-title').innerHTML = CONFIG.analisisTitulo.replace('\n', '<br>');
+  document.getElementById('analisis-sub').textContent = CONFIG.analisisSub;
+
+  // KPIs
+  document.getElementById('kpi-grid').innerHTML = CONFIG.kpis.map(k => `
+    <div class="kpi ${k.color}">
+      <div class="kpi-val">${k.val}</div>
+      <div class="kpi-lbl">${k.lbl}</div>
+      <div class="kpi-delta ${k.trend}">${k.delta}</div>
+    </div>
+  `).join('');
+
+  // Wins
+  document.getElementById('win-list').innerHTML = CONFIG.wins.map(w => `
+    <div class="win-item ${w.type}">
+      <div class="win-icon">${w.icon}</div>
+      <div class="win-body">
+        <div class="win-title">${w.title}</div>
+        <div class="win-desc">${w.desc}</div>
+        <span class="win-tag">${w.tag}</span>
+      </div>
+    </div>
+  `).join('');
+
+  // Entregables
+  document.getElementById('client-bars').innerHTML = CONFIG.entregables.map(e => `
+    <div class="cb-item">
+      <div class="cb-top">
+        <div class="cb-left">
+          <div class="cb-dot ${e.dot}"></div>
+          <div class="cb-name">${e.name}</div>
+        </div>
+        <div class="cb-right">
+          <div class="cb-pct">${e.pct}%</div>
+          <div class="cb-status ${e.status}">${e.statusLbl}</div>
+        </div>
+      </div>
+      <div class="pb-bg"><div class="pb-fill" style="width:${e.pct}%; background:${e.dot === 'green' ? 'var(--green)' : e.dot === 'yellow' ? 'var(--yellow)' : 'var(--red)'}"></div></div>
+      ${e.detail ? `<div class="cb-detail">${e.detail}</div>` : ''}
+      ${e.next ? `<div class="cb-next">${e.next}</div>` : ''}
+    </div>
+  `).join('');
+
+  // Distribución
+  const { personas, estados } = CONFIG.distribucion;
+  document.getElementById('dist-grid').innerHTML = `
+    <div class="dist-card">
+      <div class="dist-title">Tareas por persona <small>n = ${TASKS.length}</small></div>
+      <div class="stack-bar">${personas.map(p => `<div class="stack-seg" style="flex:${p.pct};background:${p.color}"></div>`).join('')}</div>
+      <div class="stack-legend">${personas.map(p => `
+        <div class="sl-row"><div class="sl-dot" style="background:${p.color}"></div><div class="sl-name">${p.name} — ${p.desc}</div><div class="sl-val">${p.pct}%</div></div>
+      `).join('')}</div>
+    </div>
+    <div class="dist-card">
+      <div class="dist-title">Estado de tareas <small>foto general</small></div>
+      <div class="stack-bar">${estados.map(e => `<div class="stack-seg" style="flex:${e.pct};background:${e.color}"></div>`).join('')}</div>
+      <div class="stack-legend">${estados.map(e => `
+        <div class="sl-row"><div class="sl-dot" style="background:${e.color}"></div><div class="sl-name">${e.name}</div><div class="sl-val">${e.pct}%</div></div>
+      `).join('')}</div>
+    </div>
+  `;
+
+  // Team cards
+  document.getElementById('team-grid').innerHTML = CONFIG.team.map(m => `
+    <div class="team-card ${m.key}">
+      <div class="tc-head">
+        <div class="tc-av ${m.av}">${m.initial}</div>
+        <div>
+          <div class="tc-name">${m.name}</div>
+          <div class="tc-role">${m.role}</div>
+        </div>
+      </div>
+      <div class="tc-stat"><span>Clientes activos</span><span>${m.clientes}</span></div>
+      <div class="tc-stat"><span>Tareas pendientes</span><span>${m.pendientes}</span></div>
+      <div class="tc-stat"><span>Foco</span><span class="tc-focus">${m.foco}</span></div>
+    </div>
+  `).join('');
+
+  // Insights
+  document.getElementById('insights').innerHTML = CONFIG.insights.map(ins => `
+    <div class="insight-card">
+      <div class="ic-label">${ins.label}</div>
+      ${ins.items.map(i => `<div class="ic-item"><div class="ic-dot ${i.dot}"></div>${i.text}</div>`).join('')}
+    </div>
+  `).join('');
+}
+
+
+/* ══════════════════════════════════════════════════════
+   RENDER — FLUJO DE TAREAS
+   ══════════════════════════════════════════════════════ */
+function ownerPills(owners) {
+  return (owners || []).map(o => {
+    const d = OWNER_DEF[o];
+    return d ? `<span class="op ${d.cls}">${d.label}</span>` : '';
+  }).join('');
+}
+
+function taskHTML(t, showClient = true) {
+  const done = t.status === 'done', ip = t.status === 'ip';
+  const cls = done ? '' : t.prio === 'red' ? 't-red' : t.prio === 'green' ? 't-green' : 't-yellow';
+  const tag = done ? '<span class="tag tag-done">✓ Listo</span>'
+             : ip   ? '<span class="tag tag-ip">· En progreso</span>'
+             : t.prio === 'red' ? '<span class="tag tag-r">Urgente</span>' : '';
+  return `
+    <div class="task ${done ? 't-done' : ''} ${done ? '' : cls}">
+      <div class="chk ${done ? 'done' : ip ? 'ip' : ''}" onclick="cycleTask('${t.id}')">${done ? '✓' : ip ? '·' : ''}</div>
+      <div class="task-main">
+        <div class="ttext ${done ? 'done' : ''}">${t.t}</div>
+        ${t.brief ? `<div class="brief-p">📝 ${t.brief}</div>` : ''}
+        <div class="tmeta">${ownerPills(t.owners)}${showClient ? `<span class="ctag">${t.client}</span>` : ''}${tag}</div>
+      </div>
+      <button class="tdel" onclick="deleteTask('${t.id}')">✕</button>
+    </div>`;
+}
+
+function renderFlujo() {
+  const red   = TASKS.filter(t => t.prio === 'red');
+  const green = TASKS.filter(t => t.prio === 'green');
+  const yel   = TASKS.filter(t => t.prio === 'yellow');
+
+  document.getElementById('red-cnt').textContent   = `${red.filter(t => t.status !== 'done').length} pendientes`;
+  document.getElementById('green-cnt').textContent = `${green.filter(t => t.status === 'done').length}/${green.length} listos`;
+  document.getElementById('yel-cnt').textContent   = `${yel.filter(t => t.status !== 'done').length} pendientes`;
+
+  document.getElementById('red-tasks').innerHTML   = red.map(t => taskHTML(t)).join('');
+  document.getElementById('green-tasks').innerHTML = green.map(t => taskHTML(t)).join('');
+  document.getElementById('yel-tasks').innerHTML   = yel.map(t => taskHTML(t)).join('');
+}
+
+function cycleTask(id) {
+  const t = TASKS.find(x => x.id === id)
+         || Object.values(PEXTRA).flat().find(x => x.id === id);
+  if (!t) return;
+  t.status = t.status === 'pend' ? 'ip' : t.status === 'ip' ? 'done' : 'pend';
+  renderFlujo();
+  renderPersonas();
+}
+
+function deleteTask(id) {
+  const i = TASKS.findIndex(x => x.id === id);
+  if (i >= 0) { TASKS.splice(i, 1); }
+  else {
+    ['a','b','c'].forEach(p => {
+      const j = PEXTRA[p].findIndex(x => x.id === id);
+      if (j >= 0) PEXTRA[p].splice(j, 1);
+    });
+  }
+  renderFlujo();
+  renderPersonas();
+}
+
+function addTask(prio) {
+  const inp = document.getElementById('ai-' + prio);
+  const val = inp?.value?.trim();
+  if (!val) return;
+  TASKS.push({ id: 't' + Date.now(), t: val, client: 'General', prio, owners: ['a'], status: 'pend', brief: '' });
+  inp.value = '';
+  renderFlujo();
+  renderPersonas();
+}
+
+
+/* ══════════════════════════════════════════════════════
+   RENDER — POR PERSONA
+   ══════════════════════════════════════════════════════ */
+function renderPersonas() {
+  const view = document.getElementById('tab-personas');
+  view.innerHTML = CONFIG.team.map(m => {
+    const mine = TASKS.filter(t => (t.owners || []).includes(m.id));
+    const all = [...mine, ...PEXTRA[m.id]];
+    all.sort((a, b) => {
+      if (a.status === 'done' && b.status !== 'done') return 1;
+      if (b.status === 'done' && a.status !== 'done') return -1;
+      const o = { red: 0, yellow: 1, green: 2 };
+      return (o[a.prio] ?? 5) - (o[b.prio] ?? 5);
+    });
+    const pend = all.filter(t => t.status !== 'done').length;
+    const tasksHTML = all.map(t => {
+      const done = t.status === 'done', ip = t.status === 'ip';
+      const bCls = done ? '' : t.prio === 'red' ? 'pt-r' : t.prio === 'green' ? 'pt-g' : 'pt-y';
+      return `
+        <div class="ptask ${done ? 'pt-done' : ''} ${bCls}">
+          <div class="chk ${done ? 'done' : ip ? 'ip' : ''}" onclick="cycleTask('${t.id}')">${done ? '✓' : ip ? '·' : ''}</div>
+          <div class="task-main">
+            <div class="ttext ${done ? 'done' : ''}">${t.t}</div>
+            <div class="tmeta"><span class="ctag">${t.client}</span></div>
+          </div>
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="psec">
+        <div class="phead">
+          <div class="pav ${m.av}">${m.initial}</div>
+          <div><div class="pname">${m.name}</div><div class="prole">${m.role}</div></div>
+          <div class="pcnt">${pend} pendiente${pend !== 1 ? 's' : ''}</div>
+        </div>
+        <div class="ptlist">${tasksHTML}</div>
+        <div class="padd-row">
+          <input class="add-in" id="pai-${m.id}" placeholder="+ tarea ${m.name}" onkeydown="if(event.key==='Enter') addPTask('${m.id}')">
+          <button class="add-btn" onclick="addPTask('${m.id}')">Agregar</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function addPTask(p) {
+  const inp = document.getElementById('pai-' + p);
+  const val = inp?.value?.trim();
+  if (!val) return;
+  PEXTRA[p].push({ id: p + Date.now(), t: val, client: 'General', prio: 'yellow', owners: [p], status: 'pend', brief: '' });
+  inp.value = '';
+  renderPersonas();
+}
+
+
+/* ══════════════════════════════════════════════════════
+   TABS
+   ══════════════════════════════════════════════════════ */
+function showTab(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('tab-' + name)?.classList.add('active');
+  document.querySelectorAll('.tab').forEach((el, i) => {
+    el.classList.toggle('active', ['analisis','flujo','personas'][i] === name);
+  });
+}
+
+
+/* ══════════════════════════════════════════════════════
+   INICIO
+   ══════════════════════════════════════════════════════ */
+renderAnalisis();
+renderFlujo();
+renderPersonas();
+</script>
+</body>
+</html>
