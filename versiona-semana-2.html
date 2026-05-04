@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Versiona — Semana 21–27 abril</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0a0a;--card:#161616;--card2:#1c1c1c;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.14);
+  --text:#f0ede8;--muted:rgba(240,237,232,0.38);--muted2:rgba(240,237,232,0.6);
+  --green:#4ade80;--gbg:rgba(74,222,128,0.1);--gbrd:rgba(74,222,128,0.28);
+  --yellow:#facc15;--ybg:rgba(250,204,21,0.1);--ybrd:rgba(250,204,21,0.28);
+  --red:#f87171;--rbg:rgba(248,113,113,0.1);--rbrd:rgba(248,113,113,0.28);
+  --purple:#7F77DD;--blue:#378ADD;--pink:#D4537E;--teal:#1D9E75;
+  --a-bg:rgba(127,119,221,0.1);--e-bg:rgba(55,138,221,0.1);--d-bg:rgba(212,83,126,0.1);
+  --r:10px;--r-sm:7px;
+}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;padding:20px;min-height:100vh;-webkit-font-smoothing:antialiased}
+
+/* TABS */
+.tabs{display:flex;gap:3px;padding:3px;background:var(--card2);border:1px solid var(--border);border-radius:var(--r);width:fit-content;margin-bottom:20px;flex-wrap:wrap}
+.tab{padding:6px 15px;border-radius:var(--r-sm);font-size:11.5px;cursor:pointer;color:var(--muted);transition:all .15s;border:none;background:transparent;font-family:'DM Sans',sans-serif}
+.tab.active{background:var(--card);color:var(--text);border:1px solid var(--border2)}
+.view{display:none}.view.active{display:block}
+
+/* ═══════════════════════════
+   HEADER
+═══════════════════════════ */
+.analysis-header{margin-bottom:24px;display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.ah-block{flex:1;min-width:240px}
+.ah-label{font-size:9px;text-transform:uppercase;letter-spacing:1.4px;color:var(--muted);margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.ah-title{font-family:'DM Serif Display',serif;font-size:24px;font-weight:400;letter-spacing:-.4px;line-height:1.1}
+.ah-sub{font-size:11px;color:var(--muted2);margin-top:6px}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--green);animation:livepulse 2s ease-in-out infinite;flex-shrink:0}
+@keyframes livepulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(74,222,128,0.45)}50%{opacity:.7;box-shadow:0 0 0 5px rgba(74,222,128,0)}}
+
+/* KPI GRID — con barra de color lateral (rescate del dash SG) */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:20px}
+@media(max-width:600px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;top:0;left:0;width:2px;height:100%}
+.kpi.k-green::before{background:var(--green)}
+.kpi.k-blue::before{background:var(--blue)}
+.kpi.k-yellow::before{background:var(--yellow)}
+.kpi.k-purple::before{background:var(--purple)}
+.kpi.k-red::before{background:var(--red)}
+.kpi-val{font-family:'DM Serif Display',serif;font-size:28px;letter-spacing:-.5px;line-height:1}
+.kpi-lbl{font-size:10px;color:var(--muted);margin-top:4px;line-height:1.35}
+.kpi-delta{font-size:10px;margin-top:6px;font-weight:500}
+.kpi-delta.up{color:var(--green)}.kpi-delta.down{color:var(--red)}.kpi-delta.neu{color:var(--muted2)}
+
+/* WIN LIST */
+.win-list{display:flex;flex-direction:column;gap:6px;margin-bottom:20px}
+.win-item{display:flex;align-items:flex-start;gap:10px;padding:10px 13px;background:var(--card);border:1px solid var(--border);border-radius:var(--r)}
+.win-item.win-big{border-color:var(--gbrd);background:var(--gbg)}
+.win-item.win-warn{border-color:var(--ybrd);background:var(--ybg)}
+.win-item.win-miss{border-color:var(--rbrd);background:var(--rbg)}
+.win-icon{font-size:16px;flex-shrink:0;margin-top:1px}
+.win-body{flex:1}
+.win-title{font-size:12px;font-weight:500;margin-bottom:2px}
+.win-desc{font-size:10.5px;color:var(--muted);line-height:1.45}
+.win-client{font-size:9px;padding:1px 6px;border-radius:20px;background:var(--card2);color:var(--muted2);border:1px solid var(--border);margin-top:5px;display:inline-block}
+
+/* SECTION TITLE */
+.sec-title{font-size:9.5px;text-transform:uppercase;letter-spacing:1.1px;color:var(--muted);font-weight:500;margin-bottom:10px;margin-top:20px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+
+/* CLIENT PROGRESS BARS */
+.client-bars{display:flex;flex-direction:column;gap:8px;margin-bottom:20px}
+.cb-item{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:11px 14px}
+.cb-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px}
+.cb-left{display:flex;align-items:center;gap:8px;min-width:0}
+.cb-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.cb-dot.green{background:var(--green);box-shadow:0 0 5px var(--green)}
+.cb-dot.yellow{background:var(--yellow);box-shadow:0 0 5px var(--yellow)}
+.cb-dot.red{background:var(--red);box-shadow:0 0 5px var(--red)}
+.cb-name{font-size:12.5px;font-weight:500}
+.cb-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.cb-pct{font-size:12px;font-weight:500}
+.cb-status{font-size:9px;padding:2px 7px;border-radius:20px;font-weight:500;white-space:nowrap}
+.cs-done{background:var(--gbg);color:var(--green);border:1px solid var(--gbrd)}
+.cs-proc{background:var(--ybg);color:var(--yellow);border:1px solid var(--ybrd)}
+.cs-pend{color:var(--muted2);border:1px solid var(--border);background:var(--card2)}
+.cs-red{background:var(--rbg);color:var(--red);border:1px solid var(--rbrd)}
+.pb-bg{height:4px;background:var(--card2);border-radius:2px;overflow:hidden;border:1px solid var(--border)}
+.pb-fill{height:100%;border-radius:2px;transition:width .5s}
+.cb-detail{font-size:10px;color:var(--muted);margin-top:6px;line-height:1.45}
+.cb-next{font-size:9.5px;color:var(--muted2);margin-top:4px;display:flex;align-items:center;gap:5px}
+.cb-next::before{content:'→';color:var(--purple);font-weight:600}
+
+/* DISTRIBUTION (rescate de semana 2 - reemplaza donut charts) */
+.dist-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px}
+@media(max-width:600px){.dist-grid{grid-template-columns:1fr}}
+.dist-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:13px}
+.dist-title{font-size:10px;font-weight:500;color:var(--text);margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+.dist-title small{font-size:9px;color:var(--muted);font-weight:400}
+.stack-bar{display:flex;height:8px;background:var(--card2);border-radius:4px;overflow:hidden;margin-bottom:10px;border:1px solid var(--border)}
+.stack-seg{height:100%;transition:flex .3s}
+.stack-legend{display:flex;flex-direction:column;gap:5px}
+.sl-row{display:flex;align-items:center;gap:7px;font-size:10.5px}
+.sl-dot{width:7px;height:7px;border-radius:2px;flex-shrink:0}
+.sl-name{color:var(--muted2);flex:1}
+.sl-val{color:var(--text);font-weight:500;font-variant-numeric:tabular-nums}
+
+/* TEAM CARDS (rescate de semana 2 - carga por persona) */
+.team-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:20px}
+@media(max-width:700px){.team-grid{grid-template-columns:1fr}}
+.team-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:14px;position:relative;overflow:hidden}
+.team-card::before{content:'';position:absolute;top:0;left:0;width:2px;height:100%}
+.team-card.tc-a::before{background:var(--purple)}
+.team-card.tc-e::before{background:var(--blue)}
+.team-card.tc-d::before{background:var(--pink)}
+.tc-head{display:flex;align-items:center;gap:10px;margin-bottom:11px}
+.tc-av{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:500;flex-shrink:0}
+.tc-name{font-size:13px;font-weight:500;line-height:1.1}
+.tc-role{font-size:9.5px;color:var(--muted);margin-top:2px}
+.tc-stat{display:flex;justify-content:space-between;font-size:10.5px;padding:5px 0;border-top:1px solid var(--border)}
+.tc-stat:first-of-type{border-top:none;padding-top:0}
+.tc-stat span:first-child{color:var(--muted)}
+.tc-stat span:last-child{color:var(--text);font-weight:500;font-variant-numeric:tabular-nums}
+.tc-focus{font-size:10.5px;color:var(--text);font-weight:500;text-align:right}
+
+/* INSIGHTS */
+.insights{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px}
+@media(max-width:600px){.insights{grid-template-columns:1fr}}
+.insight-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:13px}
+.ic-label{font-size:8.5px;text-transform:uppercase;letter-spacing:.9px;color:var(--muted);margin-bottom:8px;font-weight:500}
+.ic-item{display:flex;align-items:flex-start;gap:7px;margin-bottom:6px;font-size:11px;line-height:1.4}
+.ic-item:last-child{margin-bottom:0}
+.ic-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.ic-dot.g{background:var(--green)}.ic-dot.y{background:var(--yellow)}.ic-dot.r{background:var(--red)}
+
+/* ═══════════════════════════
+   FLUJO / ESTADO
+═══════════════════════════ */
+.prio-section{margin-bottom:18px}
+.prio-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;padding-bottom:7px;border-bottom:1px solid var(--border)}
+.prio-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.prio-dot.red{background:var(--red);box-shadow:0 0 7px var(--red);animation:pulse 1.4s ease-in-out infinite}
+.prio-dot.yellow{background:var(--yellow);box-shadow:0 0 7px var(--yellow)}
+.prio-dot.green{background:var(--green);box-shadow:0 0 7px var(--green)}
+.prio-dot.cal{background:var(--purple);box-shadow:0 0 7px var(--purple)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.prio-title{font-size:13px;font-weight:500}
+.prio-cnt{font-size:10px;color:var(--muted);margin-left:auto}
+.tasks-list{display:flex;flex-direction:column;gap:4px}
+.task{display:flex;align-items:flex-start;gap:7px;padding:7px 10px;background:var(--card);border:1px solid var(--border);border-radius:var(--r-sm);transition:all .15s}
+.task:hover{border-color:var(--border2)}
+.task.t-done{opacity:.38}
+.task.t-red{border-left:2px solid var(--red);border-radius:0 var(--r-sm) var(--r-sm) 0;background:var(--rbg)}
+.task.t-yellow{border-left:2px solid var(--yellow);border-radius:0 var(--r-sm) var(--r-sm) 0;background:var(--ybg)}
+.task.t-green{border-left:2px solid var(--green);border-radius:0 var(--r-sm) var(--r-sm) 0;background:var(--gbg)}
+.task.t-cal{border-left:2px solid var(--purple);border-radius:0 var(--r-sm) var(--r-sm) 0;background:rgba(127,119,221,0.06)}
+.chk{width:13px;height:13px;border:1px solid rgba(255,255,255,0.18);border-radius:3px;flex-shrink:0;margin-top:1px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:8px;transition:all .15s}
+.chk.done{background:var(--gbg);border-color:var(--green);color:var(--green)}
+.chk.ip{background:var(--ybg);border-color:var(--yellow);color:var(--yellow)}
+.task-main{flex:1;min-width:0}
+.ttext{font-size:11px;line-height:1.4}
+.ttext.done{text-decoration:line-through;color:var(--muted)}
+.brief-p{font-size:9px;color:var(--muted);margin-top:2px;font-style:italic}
+.tmeta{display:flex;gap:3px;margin-top:3px;flex-wrap:wrap;align-items:center}
+.op{font-size:8px;padding:1px 5px;border-radius:20px;font-weight:500}
+.oa{background:var(--a-bg);color:var(--purple)}
+.oe{background:var(--e-bg);color:var(--blue)}
+.od{background:var(--d-bg);color:var(--pink)}
+.ctag{font-size:8px;padding:1px 5px;border-radius:4px;background:var(--card2);color:var(--muted);border:1px solid var(--border)}
+.tag{font-size:7.5px;padding:1px 5px;border-radius:4px;font-weight:500}
+.tag-r{background:var(--rbg);color:var(--red)}
+.tag-y{background:var(--ybg);color:var(--yellow)}
+.tag-g{background:var(--gbg);color:var(--green)}
+.tag-ip{background:var(--ybg);color:var(--yellow)}
+.tag-done{background:var(--gbg);color:var(--green)}
+.tdel{font-size:9px;color:var(--muted);cursor:pointer;padding:2px 3px;opacity:0;transition:opacity .15s;background:transparent;border:none;flex-shrink:0}
+.task:hover .tdel{opacity:.6}
+.tdel:hover{color:var(--red);opacity:1!important}
+.add-row{display:flex;gap:5px;margin-top:6px}
+.add-in{flex:1;background:var(--card2);border:1px solid var(--border2);border-radius:var(--r-sm);padding:6px 9px;color:var(--text);font-size:11px;outline:none;font-family:'DM Sans',sans-serif}
+.add-in:focus{border-color:var(--purple)}
+.add-in::placeholder{color:var(--muted)}
+.add-btn{background:rgba(255,255,255,0.08);border:1px solid var(--border2);border-radius:var(--r-sm);padding:6px 11px;color:var(--text);font-size:11px;cursor:pointer;font-weight:500;white-space:nowrap;font-family:'DM Sans',sans-serif}
+.add-btn:hover{background:rgba(255,255,255,0.14)}
+
+/* POR PERSONA */
+.psec{margin-bottom:14px}
+.phead{display:flex;align-items:center;gap:10px;margin-bottom:7px;padding:10px 13px;background:var(--card);border:1px solid var(--border);border-radius:var(--r)}
+.pav{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;flex-shrink:0}
+.av-a{background:var(--a-bg);color:var(--purple)}
+.av-e{background:var(--e-bg);color:var(--blue)}
+.av-d{background:var(--d-bg);color:var(--pink)}
+.pname{font-size:13px;font-weight:500}
+.prole{font-size:9.5px;color:var(--muted)}
+.pcnt{margin-left:auto;font-size:9.5px;padding:2px 7px;border-radius:20px;background:var(--card2);color:var(--muted);border:1px solid var(--border)}
+.ptlist{display:flex;flex-direction:column;gap:3px}
+.ptask{display:flex;align-items:flex-start;gap:7px;padding:7px 9px;background:var(--card);border:1px solid var(--border);border-radius:var(--r-sm);transition:all .15s}
+.ptask:hover{border-color:var(--border2)}
+.ptask.pt-done{opacity:.38}
+.ptask.pt-r{border-left:2px solid var(--red);border-radius:0 var(--r-sm) var(--r-sm) 0}
+.ptask.pt-y{border-left:2px solid var(--yellow);border-radius:0 var(--r-sm) var(--r-sm) 0}
+.ptask.pt-g{border-left:2px solid var(--green);border-radius:0 var(--r-sm) var(--r-sm) 0}
+.padd-row{display:flex;gap:5px;margin-top:6px}
+</style>
+</head>
+<body>
+
+<div class="tabs">
+  <button class="tab active" onclick="showTab('analisis')">Análisis semanal</button>
+  <button class="tab" onclick="showTab('flujo')">Flujo activo</button>
+  <button class="tab" onclick="showTab('persona')">Por persona</button>
+</div>
+
+<!-- ═══ ANÁLISIS SEMANAL ═══ -->
+<div id="tab-analisis" class="view active">
+
+  <div class="analysis-header">
+    <div class="ah-block">
+      <div class="ah-label"><span class="live-dot"></span>Semana 21 — 27 abril · Versiona</div>
+      <div class="ah-title">Análisis semanal<br>de cuentas y equipo</div>
+      <div class="ah-sub">Bajío · 8 cuentas activas · 3 personas</div>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi-grid">
+    <div class="kpi k-green">
+      <div class="kpi-val" style="color:var(--green)">5/6</div>
+      <div class="kpi-lbl">Clientes con avance esta semana</div>
+      <div class="kpi-delta up">↑ Buena semana</div>
+    </div>
+    <div class="kpi k-purple">
+      <div class="kpi-val" style="color:var(--purple)">100%</div>
+      <div class="kpi-lbl">Smash Burger — entregado completo</div>
+      <div class="kpi-delta up">↑ Deadline cumplido</div>
+    </div>
+    <div class="kpi k-blue">
+      <div class="kpi-val" style="color:var(--blue)">75%</div>
+      <div class="kpi-lbl">Evolve Compact — lanzamiento ads</div>
+      <div class="kpi-delta up">↑ Cliente nuevo activo</div>
+    </div>
+    <div class="kpi k-yellow">
+      <div class="kpi-val" style="color:var(--yellow)">3/4</div>
+      <div class="kpi-lbl">Videos MX Travel listos</div>
+      <div class="kpi-delta neu">→ Falta 1 para cerrar</div>
+    </div>
+  </div>
+
+  <!-- WINS & MISSES -->
+  <div class="sec-title">Logros de la semana</div>
+  <div class="win-list">
+    <div class="win-item win-big">
+      <div class="win-icon">🏆</div>
+      <div class="win-body">
+        <div class="win-title">Smash Burger — entrega 100% completada</div>
+        <div class="win-desc">4 reels + galería de 30 fotos entregados antes del deadline. Aniversario 1 de mayo cubierto.</div>
+        <span class="win-client">Smash Burger</span>
+      </div>
+    </div>
+    <div class="win-item win-big">
+      <div class="win-icon">🚀</div>
+      <div class="win-body">
+        <div class="win-title">Evolve Compact — pasó de cero a ads en una semana</div>
+        <div class="win-desc">Cliente nuevo. Redes arrancadas, videos publicados, campaña activa. Etapa de lanzamiento.</div>
+        <span class="win-client">Evolve Compact</span>
+      </div>
+    </div>
+    <div class="win-item win-big">
+      <div class="win-icon">✓</div>
+      <div class="win-body">
+        <div class="win-title">3 Años — galería lista</div>
+        <div class="win-desc">Galería de fotos completada. Pendiente short reel y long reel.</div>
+        <span class="win-client">3 Años</span>
+      </div>
+    </div>
+    <div class="win-item win-big">
+      <div class="win-icon">🎬</div>
+      <div class="win-body">
+        <div class="win-title">MX Travel — 3/4 videos listos, últimos ajustes</div>
+        <div class="win-desc">Buen avance. Solo falta 1 video para cerrar el proyecto de contenido.</div>
+        <span class="win-client">MX Travel</span>
+      </div>
+    </div>
+    <div class="win-item win-warn">
+      <div class="win-icon">⚡</div>
+      <div class="win-body">
+        <div class="win-title">Editora — material en edición</div>
+        <div class="win-desc">Sesión ejecutada. Material en proceso de edición, hay que mantener el ritmo para no atrasarse.</div>
+        <span class="win-client">Editora</span>
+      </div>
+    </div>
+    <div class="win-item win-warn">
+      <div class="win-icon">📋</div>
+      <div class="win-body">
+        <div class="win-title">AO / JLFC — propuesta en mesa</div>
+        <div class="win-desc">Propuesta de $5k/mes en negociación. Organizar contenido para edición.</div>
+        <span class="win-client">AO / JLFC</span>
+      </div>
+    </div>
+    <div class="win-item win-miss">
+      <div class="win-icon">🔴</div>
+      <div class="win-body">
+        <div class="win-title">Altavia — semáforo en rojo</div>
+        <div class="win-desc">Stories de negocios atrasadas. Campaña esperando autorización del cliente. Reactivar urgente.</div>
+        <span class="win-client">Altavia</span>
+      </div>
+    </div>
+    <div class="win-item win-miss">
+      <div class="win-icon">⏸</div>
+      <div class="win-body">
+        <div class="win-title">SG — sin avance esta semana</div>
+        <div class="win-desc">Landing y encuesta siguen en cola. Llevan semanas en pendiente. Esta semana arranca sin falta.</div>
+        <span class="win-client">SG Arquitectura</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROGRESO POR CLIENTE -->
+  <div class="sec-title">Progreso por cliente</div>
+  <div class="client-bars">
+    <div class="cb-item">
+      <div class="cb-top">
+        <div class="cb-left"><div class="cb-dot green"></div><div class="cb-name">Smash Burger</div></div>
+        <div class="cb-right"><div class="cb-pct" style="color:var(--green)">100%</div><span class="cb-status cs-done">✓ Entregado</span></div>
+      </div>
+      <div class="pb-bg"><div class="pb-fill" style="width:100%;background:var(--green)"></div></div>
+      <div class="cb-detail">4 reels + 30 fotos entregados. Aniversario 1 mayo cubierto.</div>
+      <div class="cb-next">Cerrado</div>
+    </div>
+    <div class="cb-item">
+      <div class="cb-top">
+        <div class="cb-left"><div class="cb-dot green"></div><div class="cb-name">Evolve Compact</div></div>
+        <div class="cb-right"><div class="cb-pct" style="color:var(--green)">75%</div><span class="cb-status cs-proc">Lanzamiento ads</span></div>
+      </div>
+      <div class="pb-bg"><div class="pb-fill" style="width:75%;background:var(--green)"></div></div>
+      <div class="cb-detail">Redes arrancadas, videos publicados, campaña en lanzamiento.</div>
+      <div class="cb-next">Monitorear ads activos</div>
+    </div>
+    <div class="cb-item">
+      <div class="cb-top">
+        <div class="cb-left"><div class="cb-dot yellow"></div><div class="cb-name">MX Travel</div></div>
+        <div class="cb-right"><div class="cb-pct" style="color:var(--yellow)">75%</div><span class="cb-status cs-proc">Últimos ajustes</span></div>
+      </div>
+      <div class="pb-bg"><div class="pb-fill" style="width:75%;background:var(--yellow)"></div></div>
+      <div class="cb-detail">3/4 videos listos. Solo falta 1 video para completar.</div>
+      <div class="cb-next">Terminar 4to video</div>
+    </div>
+    <div class="cb-item">
+      <div class="cb-top">
+        <div class="cb-left"><div class="cb-dot yellow"></div><div class="cb-name">3 Años</div></div>
+        <div class="cb-right"><div class="cb-pct" style="color:var(--yellow)">60%</div><span class="cb-status cs-proc">En proceso</span></div>
+      </div>
+      <div class="pb-bg"><div class="pb-fill" style="width:60%;background:var(--yellow)"></div></div>
+      <div class="cb-detail">Galería ✓ lista. Pendiente short reel y long reel.</div>
+      <div class="cb-next">Producir short reel + long reel</div>
+    </div>
+    <div class="cb-item">
+      <div class="cb-top">
+        <div class="cb-left"><div class="cb-dot yellow"></div><div class="cb-name">Editora</div></div>
+        <div class="cb-right"><div class="cb-pct" style="color:var(--yellow)">50%</div><span class="cb-status cs-proc">Edición</span></div>
+      </div>
+      <div class="pb-bg"><div class="pb-fill" style="width:50%;background:var(--yellow)"></div></div>
+      <div class="cb-detail">Material en proceso de edición. Sesión ya ejecutada.</div>
+      <div class="cb-next">Cerrar edición y entregar</div>
+    </div>
+    <div class="cb-item">
+      <div class="cb-top">
+        <div class="cb-left"><div class="cb-dot yellow"></div><div class="cb-name">AO / JLFC</div></div>
+        <div class="cb-right"><div class="cb-pct" style="color:var(--yellow)">30%</div><span class="cb-status cs-proc">Propuesta</span></div>
+      </div>
+      <div class="pb-bg"><div class="pb-fill" style="width:30%;background:var(--yellow)"></div></div>
+      <div class="cb-detail">Propuesta de $5k/mes en negociación.</div>
+      <div class="cb-next">Cerrar propuesta + organizar edición</div>
+    </div>
+    <div class="cb-item">
+      <div class="cb-top">
+        <div class="cb-left"><div class="cb-dot red"></div><div class="cb-name">Altavia</div></div>
+        <div class="cb-right"><div class="cb-pct" style="color:var(--red)">35%</div><span class="cb-status cs-red">🔴 Echar ojo</span></div>
+      </div>
+      <div class="pb-bg"><div class="pb-fill" style="width:35%;background:var(--red)"></div></div>
+      <div class="cb-detail">Stories negocios atrasadas. Campaña esperando autorización.</div>
+      <div class="cb-next">Reactivar stories + esperar auth campaña</div>
+    </div>
+    <div class="cb-item">
+      <div class="cb-top">
+        <div class="cb-left"><div class="cb-dot yellow"></div><div class="cb-name">SG Arquitectura</div></div>
+        <div class="cb-right"><div class="cb-pct" style="color:var(--muted2)">20%</div><span class="cb-status cs-pend">Pendiente</span></div>
+      </div>
+      <div class="pb-bg"><div class="pb-fill" style="width:20%;background:var(--muted2)"></div></div>
+      <div class="cb-detail">Landing y encuesta sin mover. Pendiente de arrancar esta semana.</div>
+      <div class="cb-next">Arrancar landing esta semana sin falta</div>
+    </div>
+  </div>
+
+  <!-- DISTRIBUCIÓN DEL EQUIPO (rescate de semana 2) -->
+  <div class="sec-title">Distribución del equipo</div>
+  <div class="dist-grid">
+    <div class="dist-card">
+      <div class="dist-title">Tareas por persona <small>n = 39</small></div>
+      <div class="stack-bar">
+        <div class="stack-seg" style="flex:40;background:var(--blue)"></div>
+        <div class="stack-seg" style="flex:38;background:var(--purple)"></div>
+        <div class="stack-seg" style="flex:22;background:var(--pink)"></div>
+      </div>
+      <div class="stack-legend">
+        <div class="sl-row"><div class="sl-dot" style="background:var(--blue)"></div><div class="sl-name">Ek — operación, ads, producción</div><div class="sl-val">40%</div></div>
+        <div class="sl-row"><div class="sl-dot" style="background:var(--purple)"></div><div class="sl-name">Arturo — dirección, comunicación</div><div class="sl-val">38%</div></div>
+        <div class="sl-row"><div class="sl-dot" style="background:var(--pink)"></div><div class="sl-name">Diego — PM, edición</div><div class="sl-val">22%</div></div>
+      </div>
+    </div>
+    <div class="dist-card">
+      <div class="dist-title">Estado de tareas <small>foto general</small></div>
+      <div class="stack-bar">
+        <div class="stack-seg" style="flex:18;background:var(--green)"></div>
+        <div class="stack-seg" style="flex:12;background:var(--yellow)"></div>
+        <div class="stack-seg" style="flex:70;background:var(--card2);border-left:1px solid var(--border)"></div>
+      </div>
+      <div class="stack-legend">
+        <div class="sl-row"><div class="sl-dot" style="background:var(--green)"></div><div class="sl-name">Completadas</div><div class="sl-val">18%</div></div>
+        <div class="sl-row"><div class="sl-dot" style="background:var(--yellow)"></div><div class="sl-name">En progreso</div><div class="sl-val">12%</div></div>
+        <div class="sl-row"><div class="sl-dot" style="background:var(--muted2)"></div><div class="sl-name">Pendiente</div><div class="sl-val">70%</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CARGA POR PERSONA (rescate de semana 2 con paleta semana 1) -->
+  <div class="sec-title">Carga por persona</div>
+  <div class="team-grid">
+    <div class="team-card tc-a">
+      <div class="tc-head">
+        <div class="tc-av av-a">A</div>
+        <div>
+          <div class="tc-name">Arturo</div>
+          <div class="tc-role">Dirección · Comunicación</div>
+        </div>
+      </div>
+      <div class="tc-stat"><span>Clientes activos</span><span>8</span></div>
+      <div class="tc-stat"><span>Tareas pendientes</span><span>14</span></div>
+      <div class="tc-stat"><span>Foco</span><span class="tc-focus">AO · Comunicación</span></div>
+    </div>
+    <div class="team-card tc-e">
+      <div class="tc-head">
+        <div class="tc-av av-e">Ek</div>
+        <div>
+          <div class="tc-name">Ek</div>
+          <div class="tc-role">Operación · Ads · Producción</div>
+        </div>
+      </div>
+      <div class="tc-stat"><span>Clientes activos</span><span>7</span></div>
+      <div class="tc-stat"><span>Tareas pendientes</span><span>16</span></div>
+      <div class="tc-stat"><span>Foco</span><span class="tc-focus">Evolve · Altavia ads</span></div>
+    </div>
+    <div class="team-card tc-d">
+      <div class="tc-head">
+        <div class="tc-av av-d">D</div>
+        <div>
+          <div class="tc-name">Diego</div>
+          <div class="tc-role">Project manager · Edición</div>
+        </div>
+      </div>
+      <div class="tc-stat"><span>Clientes activos</span><span>5</span></div>
+      <div class="tc-stat"><span>Tareas pendientes</span><span>9</span></div>
+      <div class="tc-stat"><span>Foco</span><span class="tc-focus">SG landing · Gaby</span></div>
+    </div>
+  </div>
+
+  <!-- INSIGHTS -->
+  <div class="sec-title">Foco para esta semana</div>
+  <div class="insights">
+    <div class="insight-card">
+      <div class="ic-label">Para cerrar bien</div>
+      <div class="ic-item"><div class="ic-dot g"></div>4to video MX Travel — único pendiente para cerrar</div>
+      <div class="ic-item"><div class="ic-dot g"></div>Short reel y long reel de 3 Años</div>
+      <div class="ic-item"><div class="ic-dot g"></div>Cerrar edición de Editora y entregar</div>
+      <div class="ic-item"><div class="ic-dot g"></div>Cerrar propuesta AO / JLFC $5k/mes</div>
+    </div>
+    <div class="insight-card">
+      <div class="ic-label">Para no perder momentum</div>
+      <div class="ic-item"><div class="ic-dot r"></div>Altavia — reactivar stories + esperar auth campaña</div>
+      <div class="ic-item"><div class="ic-dot r"></div>SG — arrancar landing esta semana sin falta</div>
+      <div class="ic-item"><div class="ic-dot y"></div>Evolve — monitorear resultados de campaña activa</div>
+      <div class="ic-item"><div class="ic-dot y"></div>Gaby — coordinar shoot con Diego y Javier</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ FLUJO ACTIVO ═══ -->
+<div id="tab-flujo" class="view">
+
+  <div class="prio-section">
+    <div class="prio-header">
+      <div class="prio-dot red"></div>
+      <div class="prio-title">Rojo — echar ojo urgente</div>
+      <div class="prio-cnt" id="red-cnt"></div>
+    </div>
+    <div class="tasks-list" id="red-tasks"></div>
+    <div class="add-row">
+      <input class="add-in" id="ai-red" placeholder="+ tarea urgente…" onkeydown="if(event.key==='Enter')addTask('red')">
+      <button class="add-btn" onclick="addTask('red')">Agregar</button>
+    </div>
+  </div>
+
+  <div class="prio-section">
+    <div class="prio-header">
+      <div class="prio-dot green"></div>
+      <div class="prio-title">Completado / en lanzamiento</div>
+      <div class="prio-cnt" id="green-cnt"></div>
+    </div>
+    <div class="tasks-list" id="green-tasks"></div>
+  </div>
+
+  <div class="prio-section">
+    <div class="prio-header">
+      <div class="prio-dot yellow"></div>
+      <div class="prio-title">En proceso — esta semana</div>
+      <div class="prio-cnt" id="yel-cnt"></div>
+    </div>
+    <div class="tasks-list" id="yel-tasks"></div>
+    <div class="add-row">
+      <input class="add-in" id="ai-yel" placeholder="+ tarea de seguimiento…" onkeydown="if(event.key==='Enter')addTask('yellow')">
+      <button class="add-btn" onclick="addTask('yellow')">Agregar</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══ POR PERSONA ═══ -->
+<div id="tab-persona" class="view">
+  <div class="psec">
+    <div class="phead"><div class="pav av-a">A</div><div><div class="pname">Arturo</div><div class="prole">Dirección · Comunicación · Estrategia</div></div><div class="pcnt" id="cnt-a"></div></div>
+    <div class="ptlist" id="pt-a"></div>
+    <div class="padd-row"><input class="add-in" id="pai-a" placeholder="+ tarea Arturo" onkeydown="if(event.key==='Enter')addPTask('a')"><button class="add-btn" onclick="addPTask('a')">Agregar</button></div>
+  </div>
+  <div class="psec">
+    <div class="phead"><div class="pav av-e">Ek</div><div><div class="pname">Ek</div><div class="prole">Operación · Producción · Ejecución</div></div><div class="pcnt" id="cnt-e"></div></div>
+    <div class="ptlist" id="pt-e"></div>
+    <div class="padd-row"><input class="add-in" id="pai-e" placeholder="+ tarea Ek" onkeydown="if(event.key==='Enter')addPTask('e')"><button class="add-btn" onclick="addPTask('e')">Agregar</button></div>
+  </div>
+  <div class="psec">
+    <div class="phead"><div class="pav av-d">D</div><div><div class="pname">Diego</div><div class="prole">Project manager · Edición · Altavia</div></div><div class="pcnt" id="cnt-d"></div></div>
+    <div class="ptlist" id="pt-d"></div>
+    <div class="padd-row"><input class="add-in" id="pai-d" placeholder="+ tarea Diego" onkeydown="if(event.key==='Enter')addPTask('d')"><button class="add-btn" onclick="addPTask('d')">Agregar</button></div>
+  </div>
+</div>
+
+<script>
+const OWN={a:{l:'Arturo',c:'oa'},e:{l:'Ek',c:'oe'},d:{l:'Diego',c:'od'}};
+function opills(o){return(o||[]).map(x=>OWN[x]?`<span class="op ${OWN[x].c}">${OWN[x].l}</span>`:'').join('');}
+
+const TASKS=[
+  // ROJO
+  {id:'r1',t:'Altavia — reactivar stories de negocios',client:'Altavia',prio:'red',owners:['a','e','d'],status:'pend',brief:'Prioridad esta semana. No puede seguir parado.'},
+  {id:'r2',t:'Altavia — arrancar campaña en cuanto Diego autorice',client:'Altavia',prio:'red',owners:['e'],status:'pend',brief:'Esperando autorización. En cuanto llegue, lanzar.'},
+  {id:'r3',t:'SG — arrancar landing esta semana sin falta',client:'SG',prio:'red',owners:['d','a'],status:'pend',brief:'Llevan semanas en pendiente. Esta semana arranca.'},
+  // VERDE (completado/lanzado)
+  {id:'g1',t:'Smash Burger — 4 reels + 30 fotos entregados ✓',client:'Smash Burger',prio:'green',owners:['a','d','e'],status:'done',brief:''},
+  {id:'g2',t:'Evolve Compact — redes arrancadas y campaña en lanzamiento ✓',client:'Evolve Compact',prio:'green',owners:['e'],status:'done',brief:''},
+  {id:'g3',t:'3 Años — galería lista ✓',client:'3 Años',prio:'green',owners:['a','e','d'],status:'done',brief:''},
+  // AMARILLO
+  {id:'y1',t:'MX Travel — terminar 4to video (3/4 listos)',client:'MX Travel',prio:'yellow',owners:['e'],status:'pend',brief:'Últimos ajustes. Solo falta 1.'},
+  {id:'y2',t:'MX Travel — avanzar contenido general',client:'MX Travel',prio:'yellow',owners:['a','e'],status:'pend',brief:''},
+  {id:'y3',t:'Editora — terminar edición y entregar',client:'Editora',prio:'yellow',owners:['d','e'],status:'ip',brief:'Material en edición activa.'},
+  {id:'y4',t:'3 Años — short reel',client:'3 Años',prio:'yellow',owners:['a','e'],status:'pend',brief:'Galería lista. Pendiente este reel.'},
+  {id:'y5',t:'3 Años — long reel',client:'3 Años',prio:'yellow',owners:['a','e'],status:'pend',brief:''},
+  {id:'y6',t:'Evolve — monitorear resultados de campaña activa',client:'Evolve Compact',prio:'yellow',owners:['a','e'],status:'pend',brief:''},
+  {id:'y7',t:'SG — video IA edición',client:'SG',prio:'yellow',owners:['e'],status:'pend',brief:''},
+  {id:'y8',t:'SG — pedirle al cliente comprar el dominio',client:'SG',prio:'yellow',owners:['a'],status:'pend',brief:''},
+  {id:'y9',t:'La Chula — seguimiento campaña',client:'La Chula',prio:'yellow',owners:['a'],status:'pend',brief:''},
+  {id:'y10',t:'La Chula — seguir subiendo contenido día del niño',client:'La Chula',prio:'yellow',owners:['e'],status:'pend',brief:''},
+  {id:'y11',t:'La Chula — videos trends (2)',client:'La Chula',prio:'yellow',owners:['d'],status:'pend',brief:''},
+  {id:'y12',t:'AO / JLFC — cerrar propuesta $5k/mes',client:'AO / JLFC',prio:'yellow',owners:['a','d'],status:'pend',brief:'En negociación.'},
+  {id:'y13',t:'AO / JLFC — organizar contenido para edición',client:'AO / JLFC',prio:'yellow',owners:['a','d'],status:'pend',brief:''},
+  {id:'y14',t:'Gaby — coordinar shoot con Diego y Javier',client:'Gaby',prio:'yellow',owners:['d'],status:'pend',brief:'Shoot por agendar.'},
+];
+
+const PEXTRA={a:[],e:[],d:[]};
+
+function cycleT(tid){
+  const t=TASKS.find(x=>x.id===tid)||[...PEXTRA.a,...PEXTRA.e,...PEXTRA.d].find(x=>x.id===tid);
+  if(!t)return;
+  t.status=t.status==='pend'?'ip':t.status==='ip'?'done':'pend';
+  renderFlujo();renderPersonas();
+}
+function delT(tid){
+  const i=TASKS.findIndex(x=>x.id===tid);if(i>=0){TASKS.splice(i,1);}
+  else{['a','e','d'].forEach(p=>{const j=PEXTRA[p].findIndex(x=>x.id===tid);if(j>=0)PEXTRA[p].splice(j,1);});}
+  renderFlujo();renderPersonas();
+}
+function addTask(prio){
+  const inp=document.getElementById('ai-'+prio),val=inp?.value?.trim();if(!val)return;
+  TASKS.push({id:'t'+Date.now(),t:val,client:'General',prio,owners:['a'],status:'pend',brief:''});
+  inp.value='';renderFlujo();renderPersonas();
+}
+function addPTask(p){
+  const inp=document.getElementById('pai-'+p),val=inp?.value?.trim();if(!val)return;
+  PEXTRA[p].push({id:p+Date.now(),t:val,client:'General',prio:'yellow',owners:[p],status:'pend',brief:''});
+  inp.value='';renderPersonas();
+}
+
+function taskHTML(t,showClient=true){
+  const isDone=t.status==='done',isIp=t.status==='ip';
+  const cls=isDone?'':t.prio==='red'?'t-red':t.prio==='green'?'t-green':t.prio==='yellow'?'t-yellow':'t-yellow';
+  const tagV=isDone?'<span class="tag tag-done">✓ Listo</span>':isIp?'<span class="tag tag-ip">· En progreso</span>':t.prio==='red'?'<span class="tag tag-r">Urgente</span>':'';
+  return`<div class="task ${isDone?'t-done':''} ${isDone?'':cls}">
+    <div class="chk ${isDone?'done':isIp?'ip':''}" onclick="cycleT('${t.id}')">${isDone?'✓':isIp?'·':''}</div>
+    <div class="task-main">
+      <div class="ttext ${isDone?'done':''}">${t.t}</div>
+      ${t.brief?`<div class="brief-p">📝 ${t.brief}</div>`:''}
+      <div class="tmeta">${opills(t.owners)}${showClient?`<span class="ctag">${t.client}</span>`:''}${tagV}</div>
+    </div>
+    <button class="tdel" onclick="delT('${t.id}')">✕</button>
+  </div>`;
+}
+
+function renderFlujo(){
+  const red=TASKS.filter(t=>t.prio==='red');
+  const green=TASKS.filter(t=>t.prio==='green');
+  const yel=TASKS.filter(t=>t.prio==='yellow');
+  document.getElementById('red-cnt').textContent=`${red.filter(t=>t.status!=='done').length} pendientes`;
+  document.getElementById('green-cnt').textContent=`${green.filter(t=>t.status==='done').length}/${green.length} listos`;
+  document.getElementById('yel-cnt').textContent=`${yel.filter(t=>t.status!=='done').length} pendientes`;
+  document.getElementById('red-tasks').innerHTML=red.map(t=>taskHTML(t)).join('');
+  document.getElementById('green-tasks').innerHTML=green.map(t=>taskHTML(t)).join('');
+  document.getElementById('yel-tasks').innerHTML=yel.map(t=>taskHTML(t)).join('');
+}
+
+function renderPersonas(){
+  ['a','e','d'].forEach(p=>{
+    const mine=TASKS.filter(t=>(t.owners||[]).includes(p));
+    const all=[...mine,...PEXTRA[p]];
+    const order={red:0,yellow:1,green:2,done:9};
+    all.sort((a,b)=>{
+      if(a.status==='done'&&b.status!=='done') return 1;
+      if(b.status==='done'&&a.status!=='done') return -1;
+      return (order[a.prio]??5)-(order[b.prio]??5);
+    });
+    const pend=all.filter(t=>t.status!=='done').length;
+    document.getElementById('cnt-'+p).textContent=pend+' pendiente'+(pend!==1?'s':'');
+    document.getElementById('pt-'+p).innerHTML=all.map(t=>{
+      const isDone=t.status==='done',isIp=t.status==='ip';
+      const bCls=isDone?'':t.prio==='red'?'pt-r':t.prio==='green'?'pt-g':'pt-y';
+      return`<div class="ptask ${isDone?'pt-done':''} ${bCls}">
+        <div class="chk ${isDone?'done':isIp?'ip':''}" onclick="cycleT('${t.id}')">${isDone?'✓':isIp?'·':''}</div>
+        <div class="task-main">
+          <div class="ttext ${isDone?'done':''}">${t.t}</div>
+          <div class="tmeta"><span class="ctag">${t.client}</span></div>
+        </div>
+      </div>`;
+    }).join('');
+  });
+}
+
+function showTab(name){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('tab-'+name)?.classList.add('active');
+  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',['analisis','flujo','persona'][i]===name));
+}
+
+renderFlujo();
+renderPersonas();
+</script>
+</body>
+</html>
