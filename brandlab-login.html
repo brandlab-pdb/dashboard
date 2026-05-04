@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Acceso · Brand Lab PDB</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+<style>
+/* ═══════════════════════════════════════════
+   CONFIG — edita solo esta sección por cliente
+   ═══════════════════════════════════════════ */
+:root {
+  --client-name: "VERSIONA";    /* cosmético, referencia */
+  --accent: #7F77DD;            /* color acento del cliente */
+  --accent-bg: rgba(127,119,221,0.1);
+  --accent-brd: rgba(127,119,221,0.28);
+}
+
+/* ═══════════════════════════════════════════
+   SISTEMA BASE
+   ═══════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #080808;
+  --surface: #111111;
+  --surface2: #181818;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.14);
+  --text: #f0ede8;
+  --muted: rgba(240,237,232,0.38);
+  --muted2: rgba(240,237,232,0.6);
+  --green: #4ade80;
+  --red: #f87171;
+  --r: 10px;
+  --r-sm: 7px;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-font-smoothing: antialiased;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Textura de fondo */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 50% at 20% 80%, rgba(127,119,221,0.06) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 40% at 80% 20%, rgba(29,158,117,0.04) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* ═══ CONTENEDOR CENTRAL ═══ */
+.login-wrap {
+  width: 100%;
+  max-width: 400px;
+  padding: 24px;
+  position: relative;
+  z-index: 1;
+}
+
+.brand-block {
+  margin-bottom: 36px;
+}
+
+.brand-eyebrow {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--muted);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-eyebrow::before {
+  content: '';
+  width: 24px;
+  height: 1px;
+  background: var(--accent);
+  display: block;
+}
+
+.brand-title {
+  font-family: 'DM Serif Display', serif;
+  font-size: 32px;
+  font-weight: 400;
+  letter-spacing: -0.5px;
+  line-height: 1.05;
+  color: var(--text);
+}
+
+.brand-sub {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 8px;
+  line-height: 1.5;
+}
+
+/* ═══ CARD DE LOGIN ═══ */
+.login-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0.5;
+}
+
+.field-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--muted);
+  margin-bottom: 8px;
+  display: block;
+}
+
+.field-input {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: var(--r-sm);
+  padding: 12px 14px;
+  color: var(--text);
+  font-size: 14px;
+  font-family: 'DM Sans', sans-serif;
+  outline: none;
+  transition: border-color 0.15s;
+  margin-bottom: 16px;
+  letter-spacing: 0.5px;
+}
+
+.field-input:focus {
+  border-color: var(--accent);
+}
+
+.field-input::placeholder {
+  color: var(--muted);
+}
+
+/* Error */
+.err-msg {
+  font-size: 11px;
+  color: var(--red);
+  margin-bottom: 12px;
+  display: none;
+  align-items: center;
+  gap: 6px;
+}
+.err-msg.visible { display: flex; }
+
+/* Botón */
+.btn-enter {
+  width: 100%;
+  background: var(--accent);
+  border: none;
+  border-radius: var(--r-sm);
+  padding: 12px;
+  color: white;
+  font-size: 12px;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-enter:hover { opacity: 0.85; }
+.btn-enter:active { transform: scale(0.98); }
+
+/* ═══ FOOTER ═══ */
+.login-footer {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 9.5px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.login-footer::before, .login-footer::after {
+  content: '';
+  height: 1px;
+  width: 30px;
+  background: var(--border2);
+}
+
+/* ═══ ANIMACIÓN DE ENTRADA ═══ */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.login-wrap { animation: fadeUp 0.5s ease both; }
+</style>
+</head>
+<body>
+
+<div class="login-wrap">
+
+  <div class="brand-block">
+    <div class="brand-eyebrow">Portal cliente · Brand Lab PDB</div>
+    <div class="brand-title">Acceso<br>al proyecto</div>
+    <div class="brand-sub">Ingresa el código de acceso que<br>te compartió tu gestor de proyecto.</div>
+  </div>
+
+  <div class="login-card">
+    <label class="field-label" for="code-input">Código de acceso</label>
+    <input
+      class="field-input"
+      id="code-input"
+      type="password"
+      placeholder="· · · · · · · ·"
+      autocomplete="off"
+      onkeydown="if(event.key==='Enter') attemptLogin()"
+    >
+    <div class="err-msg" id="err-msg">
+      <span>⚠</span> Código incorrecto. Intenta de nuevo.
+    </div>
+    <button class="btn-enter" onclick="attemptLogin()">Entrar al dashboard</button>
+  </div>
+
+  <div class="login-footer">Brand Lab PDB · Sistema privado</div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// CONFIG — cambia solo esto por cliente
+// ═══════════════════════════════════════════
+const CONFIG = {
+  accessCode: 'versiona2025',        // código del cliente
+  dashboardFile: 'dashboard.html',   // archivo del dashboard
+  sessionKey: 'bl_access_versiona'   // clave única por cliente (evita colisiones)
+};
+// ═══════════════════════════════════════════
+
+// Si ya está autenticado en esta sesión, redirige directo
+if (sessionStorage.getItem(CONFIG.sessionKey) === 'ok') {
+  window.location.href = CONFIG.dashboardFile;
+}
+
+function attemptLogin() {
+  const val = document.getElementById('code-input').value.trim();
+  const err = document.getElementById('err-msg');
+
+  if (val === CONFIG.accessCode) {
+    sessionStorage.setItem(CONFIG.sessionKey, 'ok');
+    window.location.href = CONFIG.dashboardFile;
+  } else {
+    err.classList.add('visible');
+    document.getElementById('code-input').value = '';
+    document.getElementById('code-input').focus();
+
+    // Vibración en el card
+    const card = document.querySelector('.login-card');
+    card.style.animation = 'shake 0.3s ease';
+    setTimeout(() => card.style.animation = '', 350);
+  }
+}
+</script>
+
+<style>
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60%  { transform: translateX(-6px); }
+  40%, 80%  { transform: translateX(6px); }
+}
+</style>
+</body>
+</html>
