@@ -1,16 +1,15 @@
-# Versiona PM Dashboard - Guía de Desarrollo
+# Versiona PM - Guía de Proyecto
 
-## Estructura del Proyecto
-- `index.html`: Estructura principal y contenedores.
-- `style.css`: Variables de diseño (Dark Mode), animaciones y layout.
-- `app.js`: Lógica de negocio, gestión de LocalStorage y autenticación.
+## Estructura
+- `index.html`: Dashboard UI.
+- `style.css`: Estilos (Dark Mode, Glassmorphism).
+- `app.js`: Lógica y persistencia en LocalStorage.
 
-## Reglas de Código
-- **Nomenclatura**: Usar camelCase para JavaScript y kebab-case para clases CSS.
-- **Estilo**: Mantener la estética minimalista y oscura (#0a0a0a).
-- **Auth**: La contraseña actual es `usuario1`. No eliminar el sistema de `sessionStorage`.
-- **Datos**: Los leads y tareas se guardan en `localStorage`.
+## Estándares
+- **Auth**: Contraseña es `usuario1`. No cambiar sin avisar.
+- **UX**: Mantener el estilo "Premium/Minimalista".
+- **Datos**: Si añades campos a los leads, actualiza la función `renderLeads()`.
 
-## Comandos Útiles
-- Para actualizar el diseño: Editar variables en `:root` dentro de `style.css`.
-- Para nuevas secciones: Añadir el contenedor en `index.html` y la función de render en `app.js`.
+## Tareas Pendientes (Backlog)
+- [ ] Conectar con API de Google Sheets o Supabase (para no perder datos al borrar caché).
+- [ ] Sincronizar "Issues" de GitHub directamente en la tabla de tareas.
