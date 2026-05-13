@@ -70,9 +70,10 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;-we
 .t3-cancel{font-size:9px;color:var(--muted);background:none;border:none;cursor:pointer;font-family:'DM Sans',sans-serif}
 
 /* ══ MAIN CONTENT ══ */
-#main{flex:1;overflow:hidden;display:flex}
-.view{display:none;width:100%;height:100%;overflow-y:auto;padding:20px}
+#main{flex:1;position:relative;min-height:0;overflow:hidden}
+.view{display:none;position:absolute;inset:0;overflow-y:auto;padding:20px;background:var(--bg)}
 .view.active{display:block}
+#v-clientes{display:none}
 #v-clientes.active{display:flex;padding:0}
 
 /* ══ SECTION TITLES ══ */
@@ -299,9 +300,45 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;-we
 ::-webkit-scrollbar{width:3px;height:3px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+/* ══ LOGIN OVERLAY ══ */
+#login-overlay{position:fixed;inset:0;background:var(--bg);z-index:1000;display:flex;align-items:center;justify-content:center}
+#login-overlay.hidden{display:none}
+.lo-wrap{width:100%;max-width:380px;padding:24px}
+.lo-eyebrow{font-size:9px;text-transform:uppercase;letter-spacing:2px;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.lo-eyebrow::before{content:'';width:20px;height:1px;background:var(--purple)}
+.lo-title{font-family:'DM Serif Display',serif;font-size:28px;font-weight:400;letter-spacing:-.5px;line-height:1.05;margin-bottom:6px}
+.lo-sub{font-size:11px;color:var(--muted2);line-height:1.5;margin-bottom:22px}
+.lo-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:22px;position:relative;overflow:hidden}
+.lo-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--purple),transparent);opacity:.5}
+.lo-label{font-size:9px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-bottom:7px;display:block}
+.lo-input{width:100%;background:var(--card2);border:1px solid var(--border2);border-radius:var(--r-sm);padding:11px 13px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;transition:border .15s;margin-bottom:10px;letter-spacing:.5px}
+.lo-input:focus{border-color:var(--purple)}
+.lo-input::placeholder{color:var(--muted)}
+.lo-err{font-size:11px;color:var(--red);margin-bottom:10px;display:none;align-items:center;gap:5px}
+.lo-err.show{display:flex}
+.lo-btn{width:100%;background:var(--purple);border:none;border-radius:var(--r-sm);padding:11px;color:white;font-size:11.5px;font-family:'DM Sans',sans-serif;font-weight:600;cursor:pointer;transition:opacity .15s}
+.lo-btn:hover{opacity:.85}
+.lo-footer{text-align:center;font-size:9px;color:var(--muted);margin-top:16px}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
 </style>
 </head>
 <body>
+
+<!-- ══ LOGIN OVERLAY ══ -->
+<div id="login-overlay">
+  <div class="lo-wrap">
+    <div class="lo-eyebrow">Portal privado · Versiona</div>
+    <div class="lo-title">Acceso al<br>dashboard</div>
+    <div class="lo-sub">Ingresa el código de acceso de tu equipo.</div>
+    <div class="lo-card">
+      <label class="lo-label" for="lo-in">Código de acceso</label>
+      <input class="lo-input" id="lo-in" type="password" placeholder="· · · · · · · ·" autocomplete="off" onkeydown="if(event.key==='Enter')attemptLogin()">
+      <div class="lo-err" id="lo-err">⚠ Código incorrecto</div>
+      <button class="lo-btn" onclick="attemptLogin()">Entrar →</button>
+    </div>
+    <div class="lo-footer">Versiona · Brand Lab PDB</div>
+  </div>
+</div>
 
 <!-- ══ NAV ══ -->
 <div id="navbar">
@@ -1051,7 +1088,37 @@ function copyBrief(who){
   setTimeout(()=>{copiedWho='';renderBriefing();},2000);
 }
 
+/* ══ LOGIN ══ */
+const ACCESS_CODE = 'versiona2025';
+const SESSION_KEY = 'versiona_auth';
+
+function checkAuth(){
+  if(sessionStorage.getItem(SESSION_KEY)!=='ok'){
+    document.getElementById('login-overlay').classList.remove('hidden');
+  } else {
+    document.getElementById('login-overlay').classList.add('hidden');
+  }
+}
+
+function attemptLogin(){
+  const val = document.getElementById('lo-in').value.trim();
+  const err = document.getElementById('lo-err');
+  if(val === ACCESS_CODE){
+    sessionStorage.setItem(SESSION_KEY,'ok');
+    const overlay = document.getElementById('login-overlay');
+    overlay.style.opacity='0';overlay.style.transition='opacity .3s';
+    setTimeout(()=>overlay.classList.add('hidden'),300);
+  } else {
+    err.classList.add('show');
+    document.getElementById('lo-in').value='';
+    document.getElementById('lo-in').focus();
+    document.querySelector('.lo-card').style.animation='shake .3s ease';
+    setTimeout(()=>{document.querySelector('.lo-card').style.animation='';},350);
+  }
+}
+
 /* ══ INIT ══ */
+checkAuth();
 load();
 </script>
 </body>
