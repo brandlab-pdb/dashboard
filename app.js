@@ -1,19 +1,41 @@
-/* ══ CONFIGURACIÓN ══ */
-const ACCESS_CODE = 'usuario1'; // NUEVA CONTRASEÑA
+/* ══ CONFIGURACIÓN DE CONEXIÓN ══ */
+const SUPABASE_URL = 'ESCRIBE_AQUI_TU_URL'; // La sacas de tu captura
+const SUPABASE_KEY = 'ESCRIBE_AQUI_TU_ANON_KEY'; // La sacas de tu captura
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+/* ══ CONFIGURACIÓN DE ACCESO ══ */
+const ACCESS_CODE = 'usuario1';
 const SESSION_KEY = 'versiona_auth';
 
-console.log("Sistema Versiona Cargado. Contraseña activa: " + ACCESS_CODE);
+console.log("Sistema Versiona conectado a Supabase.");
 
-/* ══ LÓGICA DE ACCESO ══ */
+/* ══ LÓGICA DE DATOS (CRUD) ══ */
+
+// Función para leer proyectos de la base de datos
+async function fetchProyectos() {
+    const { data, error } = await supabaseClient
+        .from('proyectos')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error('Error al cargar proyectos:', error);
+    } else {
+        console.log('Proyectos cargados:', data);
+        // Aquí llamarás a tu función de renderizado, ej: renderProyectos(data);
+    }
+}
+
+/* ══ LÓGICA DE ACCESO (Login) ══ */
 function checkAuth() {
     const session = sessionStorage.getItem(SESSION_KEY);
     const overlay = document.getElementById('login-overlay');
-    
-    if (!overlay) return; // Seguridad por si el DOM no carga a tiempo
+    if (!overlay) return;
 
     if (session === 'ok') {
         overlay.classList.add('hidden');
         overlay.style.display = 'none';
+        fetchProyectos(); // Cargamos datos solo si está logueado
     } else {
         overlay.classList.remove('hidden');
         overlay.style.display = 'flex';
@@ -25,13 +47,9 @@ function attemptLogin() {
     const errorMsg = document.getElementById('lo-err');
     const val = input.value.trim();
 
-    console.log("Intento de login con:", val); // Para que veas qué está leyendo el sistema
-
     if (val === ACCESS_CODE) {
         sessionStorage.setItem(SESSION_KEY, 'ok');
         const overlay = document.getElementById('login-overlay');
-        
-        // Animación de salida
         overlay.style.opacity = '0';
         overlay.style.transition = 'opacity 0.4s ease';
         
@@ -41,19 +59,13 @@ function attemptLogin() {
             checkAuth();
         }, 400);
     } else {
-        // Error visual
         errorMsg.classList.add('show');
         input.value = '';
         input.focus();
-        
-        // Quitar mensaje de error tras 2 segundos
-        setTimeout(() => {
-            errorMsg.classList.remove('show');
-        }, 2000);
+        setTimeout(() => errorMsg.classList.remove('show'), 2000);
     }
 }
 
-// Inicialización cuando el documento está listo
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
 });
