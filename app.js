@@ -4,60 +4,50 @@ const SUPABASE_KEY = 'sb_publishable_XKmgTy_rVTW8pSYCeD7XUQ_oYp5UQ0F';
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 /* ══ CONFIGURACIÓN DE ACCESO ══ */
-const ACCESS_CODE = 'usuario1';
+const ACCESS_CODE = 'versiona2025'; // Ajustado al código que tienes en tu HTML
 const SESSION_KEY = 'versiona_auth';
 
-/* ══ NAVEGACIÓN DE PESTAÑAS ══ */
-function switchTab(tabId) {
-    // Quitar 'active' de todos los botones y ocultar todos los contenidos
-    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
+/* ══ NAVEGACIÓN DE PESTAÑAS (Ajustado a tu HTML) ══ */
+function showView(viewId) {
+    // 1. Quitar 'active' de todos los botones de navegación
+    document.querySelectorAll('.ntab').forEach(btn => btn.classList.remove('active'));
     
-    // Activar el botón presionado
-    const activeBtn = document.querySelector(`[onclick="switchTab('${tabId}')"]`);
+    // 2. Ocultar todas las vistas
+    document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
+    
+    // 3. Activar el botón correcto
+    const activeBtn = document.querySelector(`[data-view="${viewId}"]`);
     if(activeBtn) activeBtn.classList.add('active');
     
-    // Mostrar el contenido correspondiente
-    const activeContent = document.getElementById(tabId);
-    if(activeContent) activeContent.classList.remove('hidden');
+    // 4. Mostrar la sección correcta
+    const targetView = document.getElementById(`v-${viewId}`);
+    if(targetView) targetView.classList.add('active');
 
-    console.log("Navegando a:", tabId);
+    console.log("Cambiando a vista:", viewId);
 }
 
 /* ══ LÓGICA DE DATOS (Supabase) ══ */
-async function fetchProyectos() {
-    console.log("Conectando con Supabase...");
+async function fetchDashboardData() {
+    console.log("Sincronizando con Supabase...");
+    
+    // Intentamos traer los proyectos para la vista de análisis o clientes
     const { data, error } = await supabaseClient
         .from('proyectos')
         .select('*')
         .order('created_at', { ascending: false });
 
     if (error) {
-        console.error('Error al traer datos:', error.message);
+        console.error('Error de conexión:', error.message);
+        document.getElementById('save-ind').innerText = 'error ✕';
+        document.getElementById('save-ind').style.color = 'var(--red)';
     } else {
-        console.log('Datos sincronizados:', data);
-        renderProyectos(data);
+        console.log('Datos recibidos:', data);
+        document.getElementById('save-ind').innerText = 'sync ●';
+        document.getElementById('save-ind').style.color = 'var(--green)';
+        
+        // Aquí podrías llamar a funciones que pinten los datos en el dashboard
+        // renderProyectos(data); 
     }
-}
-
-function renderProyectos(proyectos) {
-    const container = document.getElementById('proyectos-grid');
-    if(!container) return;
-
-    if (proyectos.length === 0) {
-        container.innerHTML = '<div class="empty-state">No hay proyectos en la nube.</div>';
-        return;
-    }
-
-    container.innerHTML = proyectos.map(p => `
-        <div class="project-card">
-            <h3>${p.nombre_proyecto || 'Sin nombre'}</h3>
-            <p>Estado: <span class="status-tag">${p.estado || 'Pendiente'}</span></p>
-            <div class="progress-bar">
-                <div class="progress" style="width: ${p.progreso || 0}%"></div>
-            </div>
-        </div>
-    `).join('');
 }
 
 /* ══ LÓGICA DE ACCESO (Login) ══ */
@@ -68,7 +58,7 @@ function checkAuth() {
     if (session === 'ok') {
         overlay.classList.add('hidden');
         overlay.style.display = 'none';
-        fetchProyectos(); // Carga los proyectos de Supabase al entrar
+        fetchDashboardData(); 
     } else {
         overlay.classList.remove('hidden');
         overlay.style.display = 'flex';
@@ -84,11 +74,21 @@ function attemptLogin() {
         checkAuth();
     } else {
         errorMsg.classList.add('show');
+        input.value = '';
         setTimeout(() => errorMsg.classList.remove('show'), 2000);
     }
 }
 
-// Iniciar sistema
+function logout() {
+    sessionStorage.removeItem(SESSION_KEY);
+    location.reload();
+}
+
+/* ══ INICIO ══ */
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
+    
+    // Si la URL tiene un hash, intentar ir a esa pestaña
+    const hash = window.location.hash.replace('#', '');
+    if (hash) showView(hash);
 });
