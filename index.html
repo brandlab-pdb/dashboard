@@ -1,218 +1,94 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Versiona · PM Dashboard</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+/* ══ CONFIGURACIÓN DE CONEXIÓN ══ */
+const SUPABASE_URL = 'https://tceebgtgazwxkehtbmml.supabase.co'; 
+const SUPABASE_KEY = 'sb_publishable_XKmgTy_rVTW8pSYCeD7XUQ_oYp5UQ0F';
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  <link rel="stylesheet" href="style.css">
-</head>
-<body>
+/* ══ CONFIGURACIÓN DE ACCESO ══ */
+const ACCESS_CODE = 'versiona2025'; // Ajustado al código que tienes en tu HTML
+const SESSION_KEY = 'versiona_auth';
 
-<!-- ══ LOGIN OVERLAY ══ -->
-<div id="login-overlay">
-  <div class="lo-wrap">
-    <div class="lo-eyebrow">Portal privado · Versiona</div>
-    <div class="lo-title">Acceso al<br>dashboard</div>
-    <div class="lo-sub">Ingresa el código de acceso de tu equipo.</div>
-    <div class="lo-card">
-      <label class="lo-label" for="lo-in">Código de acceso</label>
-      <input class="lo-input" id="lo-in" type="password" placeholder="· · · · · · · ·" autocomplete="off" onkeydown="if(event.key==='Enter')attemptLogin()">
-      <div class="lo-err" id="lo-err">⚠ Código incorrecto</div>
-      <button class="lo-btn" onclick="attemptLogin()">Entrar →</button>
-    </div>
-    <div class="lo-footer">Versiona · Brand Lab PDB</div>
-  </div>
-</div>
+/* ══ NAVEGACIÓN DE PESTAÑAS (Ajustado a tu HTML) ══ */
+function showView(viewId) {
+    // 1. Quitar 'active' de todos los botones de navegación
+    document.querySelectorAll('.ntab').forEach(btn => btn.classList.remove('active'));
+    
+    // 2. Ocultar todas las vistas
+    document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
+    
+    // 3. Activar el botón correcto
+    const activeBtn = document.querySelector(`[data-view="${viewId}"]`);
+    if(activeBtn) activeBtn.classList.add('active');
+    
+    // 4. Mostrar la sección correcta
+    const targetView = document.getElementById(`v-${viewId}`);
+    if(targetView) targetView.classList.add('active');
 
-<!-- ══ NAV ══ -->
-<div id="navbar">
-  <div class="nb-brand">versiona <span>project manager</span></div>
-  <div class="nav-tabs">
-    <button class="ntab active" data-view="analisis" onclick="showView('analisis')">Análisis</button>
-    <button class="ntab" data-view="clientes" onclick="showView('clientes')">Clientes</button>
-    <button class="ntab" data-view="equipo" onclick="showView('equipo')">Equipo</button>
-    <button class="ntab" data-view="bloqueados" onclick="showView('bloqueados')"><span id="badge-blocked"></span>Bloqueados</button>
-    <button class="ntab ai-tab" data-view="ia" onclick="showView('ia')">✦ IA</button>
-    <button class="ntab" data-view="whatsapp" onclick="showView('whatsapp')">WhatsApp</button>
-  </div>
-  <div class="nb-right">
-    <div class="wip-ind" id="wip-bar"></div>
-    <button class="mode-toggle" onclick="toggleMode()" title="Cambiar tema"></button>
-    <div class="save-ind" id="save-ind">sync ●</div>
-    <button onclick="logout()" style="font-size:9px;color:var(--muted);background:none;border:1px solid var(--border);border-radius:var(--r-sm);padding:4px 10px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">salir</button>
-  </div>
-</div>
+    console.log("Cambiando a vista:", viewId);
+}
 
-<!-- ══ KPI STRIP ══ -->
-<div id="kpi-strip">
-  <div class="ks-item"><div class="ks-val" id="ks-activas" style="color:var(--text)">—</div><div class="ks-lbl">Activas</div></div>
-  <div class="ks-item"><div class="ks-val" id="ks-blocked" style="color:var(--muted)">—</div><div class="ks-lbl">Bloqueadas</div></div>
-  <div class="ks-item"><div class="ks-val" id="ks-done" style="color:var(--green)">—</div><div class="ks-lbl">Completadas</div></div>
-  <div class="ks-item"><div class="ks-val" id="ks-rojo" style="color:var(--muted)">—</div><div class="ks-lbl">Clientes en rojo</div></div>
-</div>
+/* ══ LÓGICA DE DATOS (Supabase) ══ */
+async function fetchDashboardData() {
+    console.log("Sincronizando con Supabase...");
+    
+    // Intentamos traer los proyectos para la vista de análisis o clientes
+    const { data, error } = await supabaseClient
+        .from('proyectos')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-<!-- ══ TOP 3 BAR ══ -->
-<div id="top3-bar">
-  <div class="t3-label">semana</div>
-  <div id="top3-display"></div>
-  <button class="t3-edit" id="t3-edit-btn" onclick="startEditTop3()">editar</button>
-  <div id="top3-edit-row" style="display:none"></div>
-</div>
+    if (error) {
+        console.error('Error de conexión:', error.message);
+        document.getElementById('save-ind').innerText = 'error ✕';
+        document.getElementById('save-ind').style.color = 'var(--red)';
+    } else {
+        console.log('Datos recibidos:', data);
+        document.getElementById('save-ind').innerText = 'sync ●';
+        document.getElementById('save-ind').style.color = 'var(--green)';
+        
+        // Aquí podrías llamar a funciones que pinten los datos en el dashboard
+        // renderProyectos(data); 
+    }
+}
 
-<!-- ══ MAIN ══ -->
-<div id="main">
+/* ══ LÓGICA DE ACCESO (Login) ══ */
+function checkAuth() {
+    const session = sessionStorage.getItem(SESSION_KEY);
+    const overlay = document.getElementById('login-overlay');
+    
+    if (session === 'ok') {
+        overlay.classList.add('hidden');
+        overlay.style.display = 'none';
+        fetchDashboardData(); 
+    } else {
+        overlay.classList.remove('hidden');
+        overlay.style.display = 'flex';
+    }
+}
 
-  <!-- ANÁLISIS -->
-  <div id="v-analisis" class="view active" style="background:var(--bg)">
-    <div class="analysis-header">
-      <div class="ah-block">
-        <div class="ah-label"><span class="live-dot"></span>Semana 28 abril – 4 mayo · Bajío</div>
-        <div class="ah-title" style="font-family:'DM Serif Display',serif">Análisis semanal<br>de cuentas y equipo</div>
-        <div class="ah-sub">8 cuentas activas · 3 personas · 14 clientes totales</div>
-      </div>
-    </div>
+function attemptLogin() {
+    const input = document.getElementById('lo-in');
+    const errorMsg = document.getElementById('lo-err');
+    
+    if (input.value.trim() === ACCESS_CODE) {
+        sessionStorage.setItem(SESSION_KEY, 'ok');
+        checkAuth();
+    } else {
+        errorMsg.classList.add('show');
+        input.value = '';
+        setTimeout(() => errorMsg.classList.remove('show'), 2000);
+    }
+}
 
-    <div class="sec-title" style="margin-top:0">Indicadores clave</div>
-    <div class="kpi-grid">
-      <div class="kpi k-green"><div class="kpi-val">5/6</div><div class="kpi-lbl">Clientes con avance esta semana</div><div class="kpi-delta up">↑ Buena semana</div></div>
-      <div class="kpi k-purple"><div class="kpi-val">100%</div><div class="kpi-lbl">Smash Burger — entregado</div><div class="kpi-delta up">↑ Deadline cumplido</div></div>
-      <div class="kpi k-blue"><div class="kpi-val">75%</div><div class="kpi-lbl">Evolve — lanzamiento ads</div><div class="kpi-delta up">↑ Cliente nuevo activo</div></div>
-      <div class="kpi k-yellow"><div class="kpi-val">3/4</div><div class="kpi-lbl">Videos MX Travel listos</div><div class="kpi-delta neu">→ Falta 1</div></div>
-    </div>
+function logout() {
+    sessionStorage.removeItem(SESSION_KEY);
+    location.reload();
+}
 
-    <div class="sec-title">Semáforo de la semana</div>
-    <div class="win-list">
-      <div class="win-item win-big"><div class="win-icon">🏆</div><div class="win-body"><div class="win-title">Smash Burger — entrega 100% completada</div><div class="win-desc">4 reels + galería 30 fotos antes del deadline. Aniversario cubierto.</div><span class="win-client">Smash Burger</span></div></div>
-      <div class="win-item win-big"><div class="win-icon">🚀</div><div class="win-body"><div class="win-title">Evolve Compact — de cero a ads en una semana</div><div class="win-desc">Redes arrancadas, videos publicados, campaña activa.</div><span class="win-client">Evolve</span></div></div>
-      <div class="win-item win-warn"><div class="win-icon">⚠</div><div class="win-body"><div class="win-title">Altavia — stories de negocios sin reactivar</div><div class="win-desc">Lleva semanas parado. Prioridad esta semana.</div><span class="win-client">Altavia</span></div></div>
-      <div class="win-item win-miss"><div class="win-icon">✕</div><div class="win-body"><div class="win-title">SG — landing sin arrancar</div><div class="win-desc">Semanas en pendiente. Arrancar sin falta esta semana.</div><span class="win-client">SG</span></div></div>
-    </div>
-
-    <div class="sec-title">Estado de entregables</div>
-    <div class="client-bars">
-      <div class="cb-item"><div class="cb-top"><div class="cb-left"><div class="cb-dot green"></div><div class="cb-name">Smash Burger</div></div><div class="cb-right"><div class="cb-pct">100%</div><span class="cb-status cs-done">Entregado</span></div></div><div class="pb-bg"><div class="pb-fill" style="width:100%;background:var(--green)"></div></div><div class="cb-detail">4 reels + 30 fotos. Aniversario 1 mayo cubierto.</div></div>
-      <div class="cb-item"><div class="cb-top"><div class="cb-left"><div class="cb-dot yellow"></div><div class="cb-name">Evolve Compact</div></div><div class="cb-right"><div class="cb-pct">75%</div><span class="cb-status cs-proc">En lanzamiento</span></div></div><div class="pb-bg"><div class="pb-fill" style="width:75%;background:var(--yellow)"></div></div><div class="cb-detail">Campaña activa. Monitorear resultados.</div><div class="cb-next">Revisar métricas de ads</div></div>
-      <div class="cb-item"><div class="cb-top"><div class="cb-left"><div class="cb-dot yellow"></div><div class="cb-name">MX Travel</div></div><div class="cb-right"><div class="cb-pct">80%</div><span class="cb-status cs-proc">En proceso</span></div></div><div class="pb-bg"><div class="pb-fill" style="width:80%;background:var(--yellow)"></div></div><div class="cb-detail">3/4 videos listos.</div><div class="cb-next">Terminar 4to video</div></div>
-      <div class="cb-item"><div class="cb-top"><div class="cb-left"><div class="cb-dot red"></div><div class="cb-name">Altavia</div></div><div class="cb-right"><div class="cb-pct">30%</div><span class="cb-status cs-red">Bloqueado</span></div></div><div class="pb-bg"><div class="pb-fill" style="width:30%;background:var(--red)"></div></div><div class="cb-detail">Stories pausadas. Campaña esperando autorización.</div><div class="cb-next">Reactivar stories urgente</div></div>
-      <div class="cb-item"><div class="cb-top"><div class="cb-left"><div class="cb-dot red"></div><div class="cb-name">SG</div></div><div class="cb-right"><div class="cb-pct">10%</div><span class="cb-status cs-red">Retrasado</span></div></div><div class="pb-bg"><div class="pb-fill" style="width:10%;background:var(--red)"></div></div><div class="cb-detail">Landing sin arrancar. Encuesta pendiente.</div><div class="cb-next">Arrancar landing esta semana</div></div>
-      <div class="cb-item"><div class="cb-top"><div class="cb-left"><div class="cb-dot yellow"></div><div class="cb-name">La Chula</div></div><div class="cb-right"><div class="cb-pct">60%</div><span class="cb-status cs-proc">En seguimiento</span></div></div><div class="pb-bg"><div class="pb-fill" style="width:60%;background:var(--yellow)"></div></div><div class="cb-detail">Campaña activa. Contenido día del niño.</div><div class="cb-next">Videos trends (2)</div></div>
-    </div>
-
-    <div class="sec-title">Distribución del equipo</div>
-    <div class="dist-grid">
-      <div class="dist-card">
-        <div class="dist-title">Tareas por persona <small>n = 39</small></div>
-        <div class="stack-bar"><div class="stack-seg" style="flex:40;background:var(--blue)"></div><div class="stack-seg" style="flex:38;background:var(--purple)"></div><div class="stack-seg" style="flex:22;background:var(--pink)"></div></div>
-        <div class="stack-legend">
-          <div class="sl-row"><div class="sl-dot" style="background:var(--blue)"></div><div class="sl-name">Ek — operación, ads, producción</div><div class="sl-val">40%</div></div>
-          <div class="sl-row"><div class="sl-dot" style="background:var(--purple)"></div><div class="sl-name">Artur — dirección, comunicación</div><div class="sl-val">38%</div></div>
-          <div class="sl-row"><div class="sl-dot" style="background:var(--pink)"></div><div class="sl-name">Diego — PM, edición</div><div class="sl-val">22%</div></div>
-        </div>
-      </div>
-      <div class="dist-card">
-        <div class="dist-title">Estado de tareas <small>foto general</small></div>
-        <div class="stack-bar"><div class="stack-seg" style="flex:18;background:var(--green)"></div><div class="stack-seg" style="flex:12;background:var(--yellow)"></div><div class="stack-seg" style="flex:70;background:var(--card2)"></div></div>
-        <div class="stack-legend">
-          <div class="sl-row"><div class="sl-dot" style="background:var(--green)"></div><div class="sl-name">Completadas</div><div class="sl-val">18%</div></div>
-          <div class="sl-row"><div class="sl-dot" style="background:var(--yellow)"></div><div class="sl-name">En progreso</div><div class="sl-val">12%</div></div>
-          <div class="sl-row"><div class="sl-dot" style="background:var(--muted2)"></div><div class="sl-name">Pendiente</div><div class="sl-val">70%</div></div>
-        </div>
-      </div>
-    </div>
-
-    <div class="sec-title">Carga por persona</div>
-    <div class="team-grid">
-      <div class="team-card tc-a"><div class="tc-head"><div class="tc-av av-a">A</div><div><div class="tc-name">Arturo</div><div class="tc-role">Dirección · Comunicación</div></div></div><div class="tc-stat"><span>Clientes activos</span><span>8</span></div><div class="tc-stat"><span>Tareas pendientes</span><span>14</span></div><div class="tc-stat"><span>Foco</span><span class="tc-focus">AO · Comunicación</span></div></div>
-      <div class="team-card tc-e"><div class="tc-head"><div class="tc-av av-e">Ek</div><div><div class="tc-name">Ek</div><div class="tc-role">Operación · Producción</div></div></div><div class="tc-stat"><span>Clientes activos</span><span>7</span></div><div class="tc-stat"><span>Tareas pendientes</span><span>16</span></div><div class="tc-stat"><span>Foco</span><span class="tc-focus">Evolve · Altavia ads</span></div></div>
-      <div class="team-card tc-d"><div class="tc-head"><div class="tc-av av-d">D</div><div><div class="tc-name">Diego</div><div class="tc-role">PM · Edición</div></div></div><div class="tc-stat"><span>Clientes activos</span><span>5</span></div><div class="tc-stat"><span>Tareas pendientes</span><span>9</span></div><div class="tc-stat"><span>Foco</span><span class="tc-focus">SG landing · Gaby</span></div></div>
-    </div>
-
-    <div class="sec-title">Foco para esta semana</div>
-    <div class="insights">
-      <div class="insight-card"><div class="ic-label">Para cerrar bien</div>
-        <div class="ic-item"><div class="ic-dot g"></div>4to video MX Travel — único pendiente</div>
-        <div class="ic-item"><div class="ic-dot g"></div>Short reel y long reel de 3 Años</div>
-        <div class="ic-item"><div class="ic-dot g"></div>Edición de Editora — entregar esta semana</div>
-        <div class="ic-item"><div class="ic-dot g"></div>Propuesta AO / JLFC $5k/mes</div>
-      </div>
-      <div class="insight-card"><div class="ic-label">Para no perder momentum</div>
-        <div class="ic-item"><div class="ic-dot r"></div>Altavia — reactivar stories + esperar auth campaña</div>
-        <div class="ic-item"><div class="ic-dot r"></div>SG — arrancar landing sin falta</div>
-        <div class="ic-item"><div class="ic-dot y"></div>Evolve — monitorear campaña activa</div>
-        <div class="ic-item"><div class="ic-dot y"></div>Gaby — coordinar shoot con Diego y Javier</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- CLIENTES -->
-  <div id="v-clientes" class="view">
-    <div id="client-sidebar"></div>
-    <div id="client-panel"></div>
-  </div>
-
-  <!-- EQUIPO -->
-  <div id="v-equipo" class="view" style="background:var(--bg)">
-    <div class="team-pm-grid" id="team-pm-grid"></div>
-  </div>
-
-  <!-- BLOQUEADOS -->
-  <div id="v-bloqueados" class="view" style="background:var(--bg)">
-    <div style="max-width:680px">
-      <div style="margin-bottom:22px">
-        <div style="font-family:'DM Serif Display',serif;font-size:20px;font-weight:400;margin-bottom:5px">⊘ Bloqueados por cliente</div>
-        <div style="font-size:11px;color:var(--muted2);line-height:1.6">Todo lo que espera respuesta, material o aprobación — ordenado por días de espera.</div>
-      </div>
-      <div id="blocked-list"></div>
-    </div>
-  </div>
-
-  <!-- IA -->
-  <div id="v-ia" class="view" style="background:var(--bg)">
-    <div class="ai-wrap">
-      <div class="ai-title">✦ Añadir tareas con IA</div>
-      <div class="ai-sub">Escribe como si fuera un audio o nota rápida. La IA extrae, asigna y agrega las tareas al dashboard automáticamente.</div>
-      <div style="margin-bottom:14px">
-        <div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:600;margin-bottom:7px;display:flex;align-items:center;gap:8px">
-          API Key Anthropic
-          <span class="api-key-status" id="api-key-status">⬤ no configurada</span>
-        </div>
-        <div class="api-key-row">
-          <input class="api-key-in" type="password" id="api-key-in" placeholder="sk-ant-…" oninput="updateKeyStatus()">
-          <button class="api-key-save" onclick="saveApiKey()">Guardar key</button>
-        </div>
-        <div style="font-size:9px;color:var(--muted);line-height:1.5">La key se guarda en localStorage de este navegador. Nunca sale de tu dispositivo.</div>
-      </div>
-      <textarea class="ai-textarea" id="ai-textarea" placeholder="Ej: EK termina los flyers de osos hoy y arranca el video de altavia, diego sigue con gaby y le pide el audio, yo mando la propuesta de JLFC y hablo con la chula para agendar la sesión que ya urge…"></textarea>
-      <button class="ai-submit" id="ai-submit-btn" onclick="handleExtract()">Extraer tareas →</button>
-      <div class="ai-error" id="ai-error" style="display:none"></div>
-      <div class="ai-preview" id="ai-preview" style="display:none">
-        <div class="aip-label" id="aip-count"></div>
-        <div id="aip-tasks"></div>
-        <div class="aip-actions">
-          <button class="btn-confirm" onclick="confirmAI()">Agregar al dashboard ✓</button>
-          <button class="btn-discard" onclick="discardAI()">Descartar</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- WHATSAPP -->
-  <div id="v-whatsapp" class="view" style="background:var(--bg)">
-    <div class="wa-wrap">
-      <div class="wa-title">WhatsApp Daily Brief</div>
-      <div class="wa-sub">Mensajes listos para copiar, uno por persona, con el tono de Versiona. Requiere API key configurada en ✦ IA.</div>
-      <button class="wa-gen-btn" id="wa-gen-btn" onclick="handleBriefing()">Generar mensajes →</button>
-      <div id="wa-cards"></div>
-    </div>
-  </div>
-
-</div>
-  
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js"></script>
-
-  <script src="app.js"></script>
-</body>
-</html>
+/* ══ INICIO ══ */
+document.addEventListener('DOMContentLoaded', () => {
+    checkAuth();
+    
+    // Si la URL tiene un hash, intentar ir a esa pestaña
+    const hash = window.location.hash.replace('#', '');
+    if (hash) showView(hash);
+});
