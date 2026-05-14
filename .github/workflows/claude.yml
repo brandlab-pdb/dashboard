@@ -1,19 +1,48 @@
-name: Claude Bot Workflow
+name: Claude Code Assistant
+
 on:
-  issues:
-    types: [opened, edited]
   issue_comment:
     types: [created]
+  issues:
+    types: [opened, labeled]
+  pull_request_review_comment:
+    types: [created]
+  pull_request_review:
+    types: [submitted]
 
 jobs:
-  claude_action:
+  claude:
+    # Solo responde a menciones de @claude, nunca a sí mismo ni a bots
+    if: |
+      github.actor != 'claude[bot]' &&
+      github.actor != 'dependabot[bot]' &&
+      github.actor != 'github-actions[bot]' &&
+      (
+        (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude'))) ||
+        (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude'))
+      )
+
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
-      - name: Claude Code Execution
-        uses: anthropic-ai/claude-code-action@v1
+
+      - name: Run Claude Code
+        uses: anthropics/claude-code-action@v1
         with:
-          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          instructions: "Eres el desarrollador de Versiona. Tu tarea es leer los Issues y aplicar los cambios solicitados al código manteniendo el estilo premium y minimalista."
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_tools: "Read,Write,Edit,MultiEdit,Bash(git status),Bash(git diff *),Bash(git log *),Bash(git add *),Bash(git commit *)"
+          custom_instructions: |
+            Eres el desarrollador de Versiona PM Dashboard.
+            SIEMPRE lee CLAUDE.md primero antes de hacer cualquier cambio.
+            Mantén el estilo dark mode, DM Sans + DM Serif Display.
+            SIEMPRE crea un Pull Request con descripción clara.
+            NUNCA hagas push directo a main.
