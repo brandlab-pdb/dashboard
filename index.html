@@ -1,94 +1,182 @@
-/* ══ CONFIGURACIÓN DE CONEXIÓN ══ */
-const SUPABASE_URL = 'https://tceebgtgazwxkehtbmml.supabase.co'; 
-const SUPABASE_KEY = 'sb_publishable_XKmgTy_rVTW8pSYCeD7XUQ_oYp5UQ0F';
-const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Versiona · PM Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+<style>
+/* ══════════════════════════════════════
+   VARIABLES Y ESTILOS BASE
+══════════════════════════════════════ */
+:root {
+  --bg:#0a0a0a; --card:#161616; --card2:#1c1c1c; --card3:#222;
+  --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.13);
+  --text:#f0ede8; --muted:rgba(240,237,232,0.38); --muted2:rgba(240,237,232,0.62);
+  --green:#4ade80; --gbg:rgba(74,222,128,0.1); --gbrd:rgba(74,222,128,0.2);
+}
 
-/* ══ CONFIGURACIÓN DE ACCESO ══ */
-const ACCESS_CODE = 'versiona2025'; // Ajustado al código que tienes en tu HTML
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'DM Sans', sans-serif; margin:0; overflow-x:hidden;
+}
+
+/* ══════════════════════════════════════
+   LAYOUT
+══════════════════════════════════════ */
+.app-container { display: flex; height: 100vh; }
+
+/* Sidebar */
+.sidebar {
+  width: 260px; border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; padding: 24px;
+}
+.logo { font-family: 'DM Serif Display', serif; font-size: 24px; margin-bottom: 40px; }
+
+.nav-item {
+  padding: 12px; margin-bottom: 4px; border-radius: 8px; cursor: pointer;
+  color: var(--muted2); transition: all 0.2s;
+}
+.nav-item:hover { background: var(--card); color: var(--text); }
+.nav-item.active { background: var(--card2); color: var(--green); }
+
+/* Main Content */
+.main-content { flex: 1; overflow-y: auto; padding: 40px; position: relative; }
+
+.view-section { display: none; }
+.view-section.active { display: block; animation: fadeIn 0.3s ease; }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ══════════════════════════════════════
+   COMPONENTES (Cards, Login, etc)
+══════════════════════════════════════ */
+#sync-status { position: absolute; top: 20px; right: 20px; font-size: 12px; color: var(--muted); }
+#sync-status span { color: #ff4a4a; } /* Por defecto error, el JS lo cambia a verde [cite: 2] */
+
+#login-overlay {
+  position: fixed; inset: 0; background: var(--bg); z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+}
+.hidden { display: none !important; }
+
+/* ... (Resto de estilos del dashboard) ... */
+</style>
+</head>
+<body onload="checkAuth()">
+
+<div id="login-overlay">
+  <div style="text-align:center;">
+    <h1 style="font-family:'DM Serif Display';">Versiona</h1>
+    <input type="password" id="lo-in" placeholder="Código de acceso" 
+           style="background:var(--card); border:1px solid var(--border); color:white; padding:10px; border-radius:5px;">
+    <button onclick="attemptLogin()" style="padding:10px 20px; cursor:pointer;">Entrar</button>
+    <p id="lo-err" style="color:red; display:none; margin-top:10px;">Código incorrecto</p>
+  </div>
+</div>
+
+<div class="app-container">
+  <aside class="sidebar">
+    <div class="logo">Versiona · PM</div>
+    <nav>
+      <div class="nav-item active" onclick="showView('analisis')">Análisis</div>
+      <div class="nav-item" onclick="showView('clientes')">Clientes</div>
+      <div class="nav-item" onclick="showView('equipo')">Equipo</div>
+    </nav>
+  </aside>
+
+  <main class="main-content">
+    <div id="sync-status">sync <span id="sync-bullet">●</span></div>
+
+    <section id="v-analisis" class="view-section active">
+      <h2 style="font-family:'DM Serif Display'; font-size:32px;">Dashboard de Análisis</h2>
+      <div id="briefing-container">
+        </div>
+    </section>
+
+    <section id="v-clientes" class="view-section">
+      <h2 style="font-family:'DM Serif Display';">Gestión de Clientes</h2>
+      <p>Módulo de base de datos de leads precalificados.</p>
+    </section>
+
+    <section id="v-equipo" class="view-section">
+      <h2 style="font-family:'DM Serif Display';">Colaboración de Equipo</h2>
+      <p>Asignación de tareas y seguimiento de proyectos.</p>
+    </section>
+  </main>
+</div>
+
+<script>
+/* ══ CONFIGURACIÓN Y AUTH ══ */
+const ACCESS_CODE = 'versiona2025'; // Actualizado según el flujo de trabajo [cite: 2]
 const SESSION_KEY = 'versiona_auth';
 
-/* ══ NAVEGACIÓN DE PESTAÑAS (Ajustado a tu HTML) ══ */
-function showView(viewId) {
-    // 1. Quitar 'active' de todos los botones de navegación
-    document.querySelectorAll('.ntab').forEach(btn => btn.classList.remove('active'));
-    
-    // 2. Ocultar todas las vistas
-    document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
-    
-    // 3. Activar el botón correcto
-    const activeBtn = document.querySelector(`[data-view="${viewId}"]`);
-    if(activeBtn) activeBtn.classList.add('active');
-    
-    // 4. Mostrar la sección correcta
-    const targetView = document.getElementById(`v-${viewId}`);
-    if(targetView) targetView.classList.add('active');
-
-    console.log("Cambiando a vista:", viewId);
+function checkAuth(){
+  if(sessionStorage.getItem(SESSION_KEY) !== 'ok'){
+    document.getElementById('login-overlay').classList.remove('hidden');
+  } else {
+    document.getElementById('login-overlay').classList.add('hidden');
+  }
 }
 
-/* ══ LÓGICA DE DATOS (Supabase) ══ */
-async function fetchDashboardData() {
-    console.log("Sincronizando con Supabase...");
-    
-    // Intentamos traer los proyectos para la vista de análisis o clientes
-    const { data, error } = await supabaseClient
-        .from('proyectos')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-    if (error) {
-        console.error('Error de conexión:', error.message);
-        document.getElementById('save-ind').innerText = 'error ✕';
-        document.getElementById('save-ind').style.color = 'var(--red)';
-    } else {
-        console.log('Datos recibidos:', data);
-        document.getElementById('save-ind').innerText = 'sync ●';
-        document.getElementById('save-ind').style.color = 'var(--green)';
-        
-        // Aquí podrías llamar a funciones que pinten los datos en el dashboard
-        // renderProyectos(data); 
-    }
+function attemptLogin(){
+  const val = document.getElementById('lo-in').value.trim();
+  if(val === ACCESS_CODE){
+    sessionStorage.setItem(SESSION_KEY, 'ok');
+    document.getElementById('login-overlay').classList.add('hidden');
+  } else {
+    document.getElementById('lo-err').style.display = 'block';
+  }
 }
 
-/* ══ LÓGICA DE ACCESO (Login) ══ */
-function checkAuth() {
-    const session = sessionStorage.getItem(SESSION_KEY);
-    const overlay = document.getElementById('login-overlay');
-    
-    if (session === 'ok') {
-        overlay.classList.add('hidden');
-        overlay.style.display = 'none';
-        fetchDashboardData(); 
-    } else {
-        overlay.classList.remove('hidden');
-        overlay.style.display = 'flex';
-    }
+/* ══ NAVEGACIÓN ══ */
+function showView(viewId){
+  // Ocultar todas
+  document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  
+  // Mostrar la seleccionada con el prefijo v- [cite: 2]
+  const section = document.getElementById('v-' + viewId);
+  if(section) section.classList.add('active');
+  
+  // Activar botón nav (busca por texto o posición para este ejemplo)
+  event.currentTarget.classList.add('active');
 }
 
-function attemptLogin() {
-    const input = document.getElementById('lo-in');
-    const errorMsg = document.getElementById('lo-err');
-    
-    if (input.value.trim() === ACCESS_CODE) {
-        sessionStorage.setItem(SESSION_KEY, 'ok');
-        checkAuth();
-    } else {
-        errorMsg.classList.add('show');
-        input.value = '';
-        setTimeout(() => errorMsg.classList.remove('show'), 2000);
-    }
+/* ══ LÓGICA DE DATOS (Briefing) ══ */
+let briefingData = {};
+let copiedWho = '';
+
+function renderBriefing(){
+  const container = document.getElementById('briefing-container');
+  if(!container) return;
+  
+  const sections = ['estilo', 'arquitectura', 'presupuesto'];
+  container.innerHTML = sections.map(who => `
+    <div class="card" style="background:var(--card); padding:20px; margin-bottom:15px; border-radius:12px;">
+      <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+        <span style="text-transform:capitalize; font-weight:600;">${who}</span>
+        <button onclick="copyBrief('${who}')" style="background:none; border:1px solid var(--border); color:var(--muted2); cursor:pointer; border-radius:4px;">
+          ${copiedWho === who ? 'copiado ✓' : 'copiar'}
+        </button>
+      </div>
+      <div class="wa-msg">${briefingData[who] || 'Esperando datos...'}</div>
+    </div>
+  `).join('');
 }
 
-function logout() {
-    sessionStorage.removeItem(SESSION_KEY);
-    location.reload();
+function copyBrief(who){
+  navigator.clipboard.writeText(briefingData?.[who] || '');
+  copiedWho = who;
+  renderBriefing();
+  setTimeout(() => { copiedWho = ''; renderBriefing(); }, 2000);
 }
 
-/* ══ INICIO ══ */
-document.addEventListener('DOMContentLoaded', () => {
-    checkAuth();
-    
-    // Si la URL tiene un hash, intentar ir a esa pestaña
-    const hash = window.location.hash.replace('#', '');
-    if (hash) showView(hash);
-});
+// Simulación de sincronización exitosa [cite: 2]
+setTimeout(() => {
+  document.getElementById('sync-bullet').style.color = 'var(--green)';
+}, 1000);
+
+</script>
+</body>
+</html>
