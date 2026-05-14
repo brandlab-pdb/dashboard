@@ -1,0 +1,19 @@
+name: Claude Bot Workflow
+on:
+  issues:
+    types: [opened, edited]
+  issue_comment:
+    types: [created]
+
+jobs:
+  claude_action:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Claude Code Execution
+        uses: anthropic-ai/claude-code-action@v1
+        with:
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          instructions: "Eres el desarrollador de Versiona. Tu tarea es leer los Issues y aplicar los cambios solicitados al código manteniendo el estilo premium y minimalista."
