@@ -1,10 +1,5 @@
 // src/constants.js
-export const ORG_ID = "00000000-0000-0000-0000-000000000001";
-export const WIP_LIMIT = 5;
-export const MAX_TASK_LEN = 200;
-
 export const TEAM_MEMBERS = ["Héctor", "Arturo", "Diego"];
-
 export const ACCESS_CODES = {
   "superadmin25": { role: "superadmin", user: "Diego" },
   "admin25":      { role: "admin",      user: "Admin" },
