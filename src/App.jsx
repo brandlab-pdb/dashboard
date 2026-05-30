@@ -78,7 +78,7 @@ function WeeklyChart({ allDone }) {
   );
 }
 
-function TaskRow({ task, cid, teamMembers, onCycleState, onCycleWho, onCyclePrio, onCompleteTask, onRestoreTask, onUpdateTitle, onDeleteTask, onSetDl, editingDl, setEditingDl, index, isAdmin }) {
+function TaskRow({ task, cid, teamMembers, onCycleState, onCycleWho, onCyclePrio, onCompleteTask, onRestoreTask, onUpdateTitle, onDeleteTask, onArchiveTask, onSetDl, editingDl, setEditingDl, index, isAdmin }) {
   const isDone = task.state === "done";
   const days = task.state === "blocked" ? daysSince(task.blockedSince) : 0;
   const member = teamMembers.find(m => m.id === task.assigned_to);
@@ -89,7 +89,7 @@ function TaskRow({ task, cid, teamMembers, onCycleState, onCycleWho, onCyclePrio
   const revOver = (task.revisions || 0) >= 2;
 
   return (
-    <div className="task-row fade-up" style={{ animationDelay:`${(index||0)*0.04}s`, display:"flex", alignItems:"flex-start", gap:10, padding:"14px 18px", background:isDone ? thm.surfaceHigh : thm.surface, borderRadius:10, border:`1px solid ${isDone ? thm.borderLight : thm.border}`, borderLeft:`3px solid ${isDone ? thm.borderLight : PRIO_CLR[task.priority]||"#facc15"}`, opacity:isDone ? .4 : 1, marginBottom:6 }}>
+    <div className="task-row fade-up" style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"14px 18px", background:isDone ? thm.surfaceHigh : thm.surface, borderRadius:10, border:`1px solid ${isDone ? thm.borderLight : thm.border}`, borderLeft:`3px solid ${isDone ? thm.borderLight : PRIO_CLR[task.priority]||"#facc15"}`, opacity:isDone ? .4 : 1, marginBottom:6 }}>
       <div style={{ flex:1, minWidth:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
           {task.service_id && <span style={{fontSize:9, background:"rgba(192,132,252,0.1)", color:"#c084fc", border:"1px solid rgba(192,132,252,0.2)", padding:"2px 6px", borderRadius:4, fontWeight:700, textTransform:"uppercase"}}>SERVICIO</span>}
@@ -123,12 +123,15 @@ function TaskRow({ task, cid, teamMembers, onCycleState, onCycleWho, onCyclePrio
           {revOver && <span style={{ fontSize:9, color:"#f87171", fontWeight:700 }}>⚠ {task.revisions} rev</span>}
         </div>
       </div>
-      {isAdmin && <button onClick={e => onDeleteTask(task.id, task.text, e)} style={{ fontSize:10, color:thm.textFaint, background:"none", border:`1px solid ${thm.borderLight}`, borderRadius:5, padding:"4px 8px", cursor:"pointer", flexShrink:0 }}>✕</button>}
+      <div style={{ display:"flex", alignItems:"center", gap:6, marginLeft:"auto", flexShrink:0 }}>
+        <button className="btn-action" onClick={(e) => onArchiveTask(task.id, task.text, e)} style={{ background:"none", border:`1px solid ${thm.border}`, borderRadius:6, padding:"4px 8px", cursor:"pointer", fontSize:11, opacity:0.6 }} title="Archivar Actividad">📥</button>
+        <button onClick={e => onDeleteTask(task.id, task.text, e)} style={{ fontSize:10, color:thm.textFaint, background:"none", border:`1px solid ${thm.borderLight}`, borderRadius:5, padding:"4px 8px", cursor:"pointer" }}>✕</button>
+      </div>
     </div>
   );
 }
 
-// ── APP CENTRAL OS ENGINE ───────────────────────────────────────────────────
+// ── MAIN APP ENGINE ────────────────────────────────────────────────────────
 export default function App() {
   const [session,       setSession]       = useState({ loggedIn:false, role:null, user:null });
   const [accessCode,    setAccessCode]    = useState("");
@@ -231,6 +234,26 @@ export default function App() {
 
   useEffect(() => { if (session.loggedIn) syncPipeline(); }, [session.loggedIn, syncPipeline]);
 
+  // ── PUENTE PUERTA DE AUTORIZACIÓN PROTEGIDA (GATING CODES) ──
+  const verifyGatedAction = async (actionLabel, taskText) => {
+    if (isAdmin) return true;
+    const code = prompt(`Acción Protegida: Introduce el código de autorización de Administrador para ${actionLabel} "${taskText}":`);
+    if (!code) return false;
+    const match = ACCESS_CODES_STATIC[code.trim().toLowerCase()];
+    if (match && (match.role === "admin" || match.role === "superadmin")) {
+      try {
+        await supabase.from("feedback_items").insert([{
+          user_name: session.user || "Equipo",
+          message: `[Código de Seguridad] Acción de [${actionLabel}] autorizada en actividad: "${taskText}".`,
+          status: "open"
+        }]);
+      } catch (err) { console.warn("Error notificando"); }
+      return true;
+    }
+    alert("Código incorrecto. Acción cancelada.");
+    return false;
+  };
+
   const cycleState = async (cid, tid) => {
     const c = clients.find(c=>c.id===cid);
     const t = c?.tasks.find(x=>x.id===tid);
@@ -263,6 +286,18 @@ export default function App() {
   const restoreTask = async (tid) => {
     setSaving(true);
     try { await supabase.from("tasks").update({ status:"pending", updated_at: new Date().toISOString() }).eq("id", tid); await syncPipeline(); } catch (e) { console.error(e); }
+    setSaving(false);
+  };
+
+  const archiveTask = async (tid, text, e) => {
+    e.stopPropagation();
+    const authorized = await verifyGatedAction("Archivar", text);
+    if (!authorized) return;
+    setSaving(true);
+    try {
+      await supabase.from("tasks").update({ status: "archived", updated_at: new Date().toISOString() }).eq("id", tid);
+      await syncPipeline();
+    } catch (e) { console.error(e); }
     setSaving(false);
   };
 
@@ -307,17 +342,11 @@ export default function App() {
   };
 
   const deleteTask = async (tid, text, e) => {
-    e.stopPropagation(); if (!confirm(`¿Estás seguro de eliminar "${text}" permanentemente?`)) return; setSaving(true);
+    e.stopPropagation();
+    const authorized = await verifyGatedAction("Eliminar permanentemente", text);
+    if (!authorized) return;
+    setSaving(true);
     try { await supabase.from("tasks").delete().eq("id", tid); await syncPipeline(); } catch (e) { console.error(e); }
-    setSaving(false);
-  };
-
-  const handleFeedbackSubmit = async (e) => {
-    e.preventDefault(); if(!feedbackMsg.trim()) return; setSaving(true);
-    try { 
-      await supabase.from("feedback_items").insert([{ user_name: session.user, message: `[${feedbackType}] ${feedbackMsg}`, status: "open" }]); 
-      setFeedbackMsg(""); setFeedbackSuccess(true); setTimeout(() => setFeedbackSuccess(false), 3000); 
-    } catch (err) { console.warn("Feedback offline mode."); }
     setSaving(false);
   };
 
@@ -327,16 +356,26 @@ export default function App() {
     setSaving(false);
   };
 
-  const saveProjectFinancials = async (id) => {
-     setSaving(true);
-     try { await supabase.from("projects").update({ name: editProjData.name.trim(), client: editProjData.type }).eq("id", id); setEditingProject(null); await syncPipeline(); } catch(e) { console.error(e); }
-     setSaving(false);
+  const archiveProject = async (projectId, projectName) => {
+    if (!confirm(`¿Estás seguro de archivar el proyecto "${projectName}"? Se removerá del panel activo.`)) return; 
+    setSaving(true);
+    try { 
+      await supabase.from("projects").update({ status:"archived" }).eq("id", projectId); 
+      if (activeClient === projectId) setActiveClient(null); 
+      await syncPipeline(); 
+    } catch (e) { console.error(e); }
+    setSaving(false);
   };
 
-  const archiveProject = async (projectId, projectName) => {
-    if (!confirm(`¿Estás seguro de archivar el proyecto "${projectName}"? Ya no aparecerá en el dashboard.`)) return; 
+  const deleteProject = async (projectId, projectName) => {
+    if (!confirm(`⚠ ALERTA MÁXIMA: ¿Estás completamente seguro de ELIMINAR permanentemente el proyecto "${projectName}" y todas sus actividades vinculadas?`)) return;
     setSaving(true);
-    try { await supabase.from("projects").update({ status:"archived" }).eq("id", projectId); if (activeClient === projectId) setActiveClient(null); await syncPipeline(); } catch (e) { console.error(e); }
+    try {
+      await supabase.from("tasks").delete().eq("project_id", projectId);
+      await supabase.from("projects").delete().eq("id", projectId);
+      if (activeClient === projectId) setActiveClient(null);
+      await syncPipeline();
+    } catch (e) { console.error(e); }
     setSaving(false);
   };
 
@@ -371,36 +410,38 @@ export default function App() {
   const isSuperAdmin    = session.role === "superadmin";
   const adminProjects   = clients.filter(c => (c.type==="admin" || c.name.toLowerCase().includes("admin")) && c.dbStatus !== "archived");
   const regularProjects = clients.filter(c => !adminProjects.some(a=>a.id===c.id) && c.dbStatus !== "archived");
-  const activeProjects  = regularProjects.filter(c => c.tasks && c.tasks.some(t => t.state !== "done"));
+  const activeProjects  = regularProjects.filter(c => c.tasks && c.tasks.some(t => t.state !== "done" && t.state !== "archived"));
   
   const sortedActive = sortProjects(activeProjects);
   const client       = clients.find(c=>c.id===activeClient) || sortedActive[0] || adminProjects[0];
   const blockedAll   = clients.flatMap(c=>c.tasks ? c.tasks.filter(t=>t.state==="blocked").map(t=>({...t,cname:c.name,cid:c.id})) : []);
   
-  const getDone      = (tasks) => tasks ? tasks.filter(t=>t.state==="done") : [];
-  const allDone      = clients.flatMap(c => getDone(c.tasks).map(t=>({...t, cname:c.name})));
-  const weekGroups   = groupDoneByWeek(allDone);
-  
-  const allPend      = clients.reduce((acc, c) => acc + (c.tasks ? c.tasks.filter(t => t.state !== "done").length : 0), 0);
-  const allBlock     = blockedAll.length;
-  const allOver      = clients.reduce((acc, c) => acc + (c.tasks ? c.tasks.filter(t => { const d = deadlineInfo(t.deadline); return d && d.status === "due" && t.state !== "done"; }).length : 0), 0);
-
   const getActive = (tasks) => {
     if (!tasks || !Array.isArray(tasks)) return [];
-    let list = tasks.filter(t => t.state !== "done");
+    let list = tasks.filter(t => t.state !== "done" && t.state !== "archived");
     if (orderCriteria === "priority") { list.sort((a, b) => (PRIO_ORDER[a.priority] ?? 1) - (PRIO_ORDER[b.priority] ?? 1)); }
     else if (orderCriteria === "person") { list.sort((a, b) => { const memA = teamMembers.find(m => m.id === a.assigned_to)?.name || ""; const memB = teamMembers.find(m => m.id === b.assigned_to)?.name || ""; return memA.localeCompare(memB); }); }
     return list;
   };
 
-  const rowProps = { teamMembers, onCycleState: cycleState, onCycleWho: cycleWho, onCyclePrio: cyclePrio, onCompleteTask: completeTask, onRestoreTask: restoreTask, onDeleteTask: deleteTask, onUpdateTitle: updateTitle, onSetDl: setDl, editingDl, setEditingDl, isAdmin };
+  const getDone = (tasks) => tasks ? tasks.filter(t=>t.state==="done" && t.state !== "archived") : [];
+  const getArchivedTasks = () => clients.flatMap(c => (c.tasks || []).filter(t => t.state === "archived").map(t => ({ ...t, cname: c.name, cid: c.id })));
+
+  const allDone      = clients.flatMap(c => getDone(c.tasks).map(t=>({...t, cname:c.name})));
+  const weekGroups   = groupDoneByWeek(allDone);
+  
+  const allPend      = clients.reduce((acc, c) => acc + (c.tasks ? c.tasks.filter(t => t.state !== "done" && t.state !== "archived").length : 0), 0);
+  const allBlock     = blockedAll.length;
+  const allOver      = clients.reduce((acc, c) => acc + (c.tasks ? c.tasks.filter(t => { const d = deadlineInfo(t.deadline); return d && d.status === "due" && t.state !== "done" && t.state !== "archived"; }).length : 0), 0);
+
   const navBtn = (id, label, accentColor) => ( <button className="nav-btn" key={id} onClick={()=>setView(id)} style={{ background:view===id?(accentColor||thm.accentBg):"transparent", color:view===id?(accentColor?"#080a0e":thm.accentText):thm.textSub }}>{label}</button> );
 
-  const totalActiveEquipo = clients.flatMap(c=>c.tasks ? c.tasks.filter(t=>t.state!=="done") : []).length || 1;
+  const totalActiveEquipo = clients.flatMap(c=>c.tasks ? c.tasks.filter(t=>t.state!=="done" && t.state!=="archived") : []).length || 1;
   const timeStr = now.toLocaleDateString("es-MX", { weekday:"short", day:"2-digit", month:"short" }) + " · " + now.toLocaleTimeString("es-MX", { hour:"2-digit", minute:"2-digit" }); 
   const inpStyle = { background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, fontSize:12, padding:"9px 12px", outline:"none" };
-
-  // ── PANTALLA LOGIN ──
+  const rowProps = { teamMembers, onCycleState: cycleState, onCycleWho: cycleWho, onCyclePrio: cyclePrio, onCompleteTask: completeTask, onRestoreTask: restoreTask, onDeleteTask: deleteTask, onArchiveTask: archiveTask, onSetDl: setDl, editingDl, setEditingDl, isAdmin };
+  
+  // ── PANTALLA LOGIN SEMILLA ──
   if (!session.loggedIn) {
     const currentDate = now.toLocaleDateString("es-MX", { weekday:"long", day:"2-digit", month:"long", year:"numeric" });
     return (
@@ -422,8 +463,6 @@ export default function App() {
       </div>
     );
   }
-
-  if (!loaded) return <div style={{ height:"100vh", background:thm.bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16, fontFamily:font }}><div className="font-serif" style={{ fontSize:22, color:thm.text }}>VERSIONA<span style={{ color:"#F47920" }}>O</span><span style={{ color:"#29ABE2", fontStyle:"italic" }}>S</span></div><div className="pulse" style={{ fontSize:11, color:thm.textMuted, letterSpacing:2 }}>SINCRONIZANDO VECTORES</div></div>;
 
   return (
     <div style={{ minHeight:"100vh", background:thm.bg, color:thm.text, display:"flex", flexDirection:"column", fontFamily:font }}>
@@ -478,8 +517,10 @@ export default function App() {
               )}
               {sortedActive.length > 0 && <div style={{ padding:"16px 18px 6px", fontSize:9, color:thm.textMuted, letterSpacing:2, textTransform:"uppercase", fontWeight:700 }}>Clientes Activos</div>}
               {sortedActive.map(c => {
-                const total = c.tasks ? c.tasks.length : 0; const done = c.tasks ? c.tasks.filter(t=>t.state==="done").length : 0;
-                const bl = c.tasks ? c.tasks.filter(t=>t.state==="blocked").length : 0; const pd = c.tasks ? c.tasks.filter(t=>t.state!=="done").length : 0;
+                const total = c.tasks ? c.tasks.filter(t=>t.state!=="archived").length : 0; 
+                const done = c.tasks ? c.tasks.filter(t=>t.state==="done").length : 0;
+                const bl = c.tasks ? c.tasks.filter(t=>t.state==="blocked").length : 0; 
+                const pd = c.tasks ? c.tasks.filter(t=>t.state!=="done" && t.state!=="archived").length : 0;
                 return (
                   <button key={c.id} onClick={() => { setActiveClient(c.id); setShowDone(false); }} style={{ width:"100%", textAlign:"left", padding:"11px 18px", background:c.id===client?.id?thm.surfaceHigh:"transparent", border:"none", borderLeft:c.id===client?.id?`3px solid ${STA_CLR[c.status]}`:"3px solid transparent", cursor:"pointer", color:c.id===client?.id?thm.text:thm.textSub, fontSize:12 }}>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:6, marginBottom:4 }}>
@@ -490,11 +531,6 @@ export default function App() {
                   </button>
                 );
               })}
-              {isAdmin && (
-                <div style={{ padding:"16px", marginTop:"auto" }}>
-                  <button onClick={() => setView("admin-utils")} style={{ width:"100%", background:thm.accentBg, color:thm.accentText, border:"none", borderRadius:8, padding:"10px 20px", fontSize:11, fontWeight:700, cursor:"pointer" }}>+ Nuevo proyecto</button>
-                </div>
-              )}
             </div>
 
             <div style={{ flex:1, overflowY:"auto", padding:"28px 36px", background:thm.bg }}>
@@ -564,17 +600,15 @@ export default function App() {
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg, maxWidth:850, margin:"0 auto", width:"100%" }}>
             <h2 className="font-serif" style={{ fontSize:30, marginBottom:6 }}>📋 Servicios</h2>
             <p style={{ fontSize:13, color:thm.textSub, marginBottom:28 }}>Mapeo global de entregables activos divididos por tipo de servicio.</p>
-            {CREATIVE_SERVICES_CATALOG.every(srv => clients.flatMap(c => (c.tasks || []).filter(t => t.service_id === srv.id && t.state !== "done")).length === 0) ? (
+            {CREATIVE_SERVICES_CATALOG.every(srv => clients.flatMap(c => (c.tasks || []).filter(t => t.service_id === srv.id && t.state !== "done").map(t => ({ ...t, cname: c.name }))).length === 0) ? (
                <div style={{ textAlign:"center", padding:48, color:thm.textMuted, background:thm.surface, borderRadius:14, border:`1px dashed ${thm.border}` }}>No hay servicios creativos mapeados en el flujo activo.</div>
             ) : (
                <div style={{ display:"flex", flexDirection:"column", gap:24 }}>
                   {CREATIVE_SERVICES_CATALOG.map(srv => {
                      const tasksForService = clients.flatMap(c => 
-                        (c.tasks || []).filter(t => t.service_id === srv.id && t.state !== "done").map(t => ({ ...t, cname: c.name }))
+                        (c.tasks || []).filter(t => t.service_id === srv.id && t.state !== "done" && t.state !== "archived").map(t => ({ ...t, cname: c.name }))
                      );
-                     
                      if (tasksForService.length === 0) return null;
-
                      return (
                         <div key={srv.id} style={{ background:thm.surface, borderRadius:12, border:`1px solid ${thm.border}`, overflow:"hidden" }}>
                            <div style={{ padding:"16px 20px", borderBottom:`1px solid ${thm.borderLight}`, display:"flex", justifyContent:"space-between", background:thm.surfaceHigh }}>
@@ -604,7 +638,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ══ VIEW: FEEDBACK LOOP / SOPORTE (BIFURCACIÓN ADMIN / TEAM) ══ */}
+        {/* ══ VIEW: FEEDBACK LOOP / SOPORTE (BUZÓN DE CONTROL) ══ */}
         {view === "feedback" && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg, maxWidth:isAdmin ? 800 : 600, margin:"0 auto", width:"100%" }}>
             {isAdmin ? (
@@ -667,12 +701,23 @@ export default function App() {
           </div>
         )}
 
-        {/* ══ VIEW: TEAM (PÚBLICA COLABORATIVA) ══ */}
-        {view === "team" && !isAdmin && (
+        {/* ══ VIEW: TEAM / EQUIPO (GRAFICA PURA MATRIX) ══ */}
+        {(view === "team" || view === "equipo") && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"22px", background:thm.bg }}>
+            
+            {/* ── GRAFICA DE PASTEL MATRIX PURA SIN TÍTULOS ── */}
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 32, padding: "10px" }}>
+               <div style={{ width: 140, height: 140, borderRadius: "50%", background: teamMembers.map(m => { const mActive = clients.flatMap(c=>c.tasks ? c.tasks.filter(t=>t.state!=="done" && t.state!=="archived" && toWho(t.who || "") === toWho(m.name)) : []).length; const pct = (mActive / (clients.flatMap(c=>c.tasks ? c.tasks.filter(t=>t.state!=="done" && t.state!=="archived") : []).length || 1)) * 100; if (pct === 0) return null; let currentDeg = 0; const color = getMemberColor(m.name); const start = currentDeg; currentDeg += pct; return `${color} ${start}% ${currentDeg}%`; }).filter(Boolean).join(", ") ? `conic-gradient(${teamMembers.map(m => { const mActive = clients.flatMap(c=>c.tasks ? c.tasks.filter(t=>t.state!=="done" && t.state!=="archived" && toWho(t.who || "") === toWho(m.name)) : []).length; const pct = (mActive / (clients.flatMap(c=>c.tasks ? c.tasks.filter(t=>t.state!=="done" && t.state!=="archived") : []).length || 1)) * 100; if (pct === 0) return null; let currentDeg = 0; const color = getMemberColor(m.name); const start = currentDeg; currentDeg += pct; return `${color} ${start}% ${currentDeg}%`; }).filter(Boolean).join(", ")})` : thm.border, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 6px 24px rgba(0,0,0,0.5)" }}>
+                  <div style={{ width: 85, height: 85, background: thm.surface, borderRadius: "50%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
+                     <span style={{ fontSize:22, fontWeight:700, color:"#eef0f3" }}>{clients.flatMap(c=>c.tasks ? c.tasks.filter(t=>t.state!=="done" && t.state!=="archived") : []).length}</span>
+                     <span style={{ fontSize:9, color:thm.textMuted, letterSpacing:1 }}>ACTIVAS</span>
+                  </div>
+               </div>
+            </div>
+
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))", gap:14 }}>
               {teamMembers.map(m => {
-                const active = clients.flatMap(c => c.tasks ? c.tasks.filter(t => t.assigned_to === m.id && t.state !== "done") : []);
+                const active = clients.flatMap(c => c.tasks ? c.tasks.filter(t => t.assigned_to === m.id && t.state !== "done" && t.state !== "archived") : []);
                 const done = clients.flatMap(c => c.tasks ? c.tasks.filter(t => t.assigned_to === m.id && t.state === "done") : []);
                 const n = active.length; const ov = n >= WIP_LIMIT; const mColor = getMemberColor(m.name);
                 return (
@@ -695,29 +740,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ══ VIEW: EQUIPO (ADMIN CON CARGA DE TRABAJO) ══ */}
-        {view === "equipo" && isAdmin && (
-           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg, width:"100%" }}>
-             <h2 className="font-serif" style={{ fontSize:30, marginBottom:24 }}>Gestión de Equipo (Carga de Trabajo)</h2>
-             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))", gap:18 }}>
-               {teamMembers.map(m => {
-                 const active = clients.flatMap(c => c.tasks ? c.tasks.filter(t => t.assigned_to === m.id && t.state !== "done") : []);
-                 const done = clients.flatMap(c => c.tasks ? c.tasks.filter(t => t.assigned_to === m.id && t.state === "done") : []);
-                 const n = active.length; const ov = n >= WIP_LIMIT; const isExpanded = expandedWho === m.id; const mColor = getMemberColor(m.name);
-                 return (
-                   <div key={m.id} className="team-card" style={{ background:thm.surface, border:`1px solid ${thm.border}`, padding:20, borderRadius:12, position:"relative" }}>
-                     <div style={{ position:"absolute", top:0, left:0, width:4, height:"100%", background:mColor }}/>
-                     <div style={{ fontSize:16, fontWeight:700, color:mColor, marginBottom:10 }}>{m.name}</div>
-                     <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, marginBottom:4 }}><span style={{ color:thm.textMuted }}>Pendientes activas</span><span style={{ fontWeight:600, color:ov?"#f87171":thm.text }}>{n}</span></div>
-                     <div style={{ display:"flex", justifyContent:"space-between", fontSize:12 }}><span style={{ color:thm.textMuted }}>Completadas</span><span style={{ fontWeight:600, color:"#4ade80" }}>{done.length}</span></div>
-                   </div>
-                 );
-               })}
-             </div>
-           </div>
-        )}
-
-        {/* ══ VIEW: COMPLETADAS (AUDITORÍA Y ANÁLISIS SEMANAL COMPLETO) ══ */}
+        {/* ══ VIEW: COMPLETADAS (AUDITORÍA SEMANAL CON BUFFER) ══ */}
         {view === "completadas" && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg, width:"100%" }}>
             <h2 className="font-serif" style={{ fontSize:32, margin:"0 0 4px 0" }}>📊 Análisis Semanal</h2>
@@ -738,10 +761,10 @@ export default function App() {
 
               {/* SEMÁFORO DE AUDITORÍA */}
               <div style={{ background:thm.surface, borderRadius:14, padding:24, border:`1px solid ${thm.border}` }}>
-                <div style={{ fontSize:10, color:thm.textMuted, letterSpacing:1.5, textTransform:"uppercase", marginBottom:16, fontWeight:700 }}>Semáforo de Intención y Avance Semanal</div>
-                <div className="semaforo-win" style={{ marginBottom:12 }}><span style={{ fontSize:24 }}>🏆</span><div style={{ flex:1 }}><div style={{ fontSize:11, color:"#4ade80", fontWeight:700 }}>LOGRO DE IMPACTO SEMANAL</div><textarea rows={2} placeholder="Ej: Logramos liberar la campaña de MX Travel 2 días antes y el cliente aprobó sin cambios." style={{ width:"100%", background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, padding:10, marginTop:6 }}/></div></div>
-                <div className="semaforo-warn" style={{ marginBottom:12 }}><span style={{ fontSize:24 }}>🚀</span><div style={{ flex:1 }}><div style={{ fontSize:11, color:"#facc15", fontWeight:700 }}>AVANCE DESTACADO DE CONTENIDO</div><textarea rows={2} placeholder="Ej: Destrabamos los guiones de La Chula, ya están listos para grabar." style={{ width:"100%", background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, padding:10, marginTop:6 }}/></div></div>
-                <div className="semaforo-risk"><span style={{ fontSize:24 }}>⚠️</span><div style={{ flex:1 }}><div style={{ fontSize:11, color:"#f87171", fontWeight:700 }}>RIESGO / CUELLO DE BOTELLA CRÍTICO</div><textarea rows={2} placeholder="Ej: El proveedor de hosting no responde, la landing page lleva 3 días parada." style={{ width:"100%", background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, padding:10, marginTop:6 }}/></div></div>
+                <div style={{ fontSize:10, color:thm.textMuted, letterSpacing:1.5, textTransform:"uppercase", marginBottom:16, fontWeight:700 }}>Semáforo de Intención Semanal</div>
+                <div className="semaforo-win" style={{ marginBottom:12 }}><span style={{ fontSize:24 }}>🏆</span><div style={{ flex:1 }}><div style={{ fontSize:11, color:"#4ade80", fontWeight:700 }}>LOGRO DE IMPACTO SEMANAL</div><textarea rows={2} placeholder="Ej: Logramos liberar la pauta de contenidos de MX Travel 2 días antes y el cliente aprobó la línea de diseño sin cambios." style={{ width:"100%", background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, padding:10, marginTop:6 }}/></div></div>
+                <div className="semaforo-warn" style={{ marginBottom:12 }}><span style={{ fontSize:24 }}>🚀</span><div style={{ flex:1 }}><div style={{ fontSize:11, color:"#facc15", fontWeight:700 }}>AVANCE DESTACADO DE CONTENIDO</div><textarea rows={2} placeholder="Ej: Destrabamos la producción de reels para La Chula, las grabaciones ya están agendadas." style={{ width:"100%", background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, padding:10, marginTop:6 }}/></div></div>
+                <div className="semaforo-risk"><span style={{ fontSize:24 }}>⚠️</span><div style={{ flex:1 }}><div style={{ fontSize:11, color:"#f87171", fontWeight:700 }}>RIESGO / CUELLO DE BOTELLA CRÍTICO</div><textarea rows={2} placeholder="Ej: El cliente de pauta no ha enviado los accesos de Meta Business Manager, pauta detenida 3 días." style={{ width:"100%", background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, padding:10, marginTop:6 }}/></div></div>
               </div>
 
               {/* WHATSAPP BRIEFING LOOP */}
@@ -750,7 +773,7 @@ export default function App() {
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
                     <div>
                       <div style={{ fontSize:14, fontWeight:700 }}>WhatsApp Daily Brief Loop</div>
-                      <div style={{ fontSize:11, color:thm.textMuted }}>Genera la matriz de comunicación limpia para distribución al equipo.</div>
+                      <div style={{ fontSize:11, color:thm.textMuted }}>Genera la matriz de comunicación limpia para pauta y equipo.</div>
                     </div>
                     <button onClick={generateDailyBriefs} style={{ background:thm.text, color:thm.bg, border:"none", padding:"8px 16px", borderRadius:6, fontWeight:700, cursor:"pointer", fontSize:11 }}>Generar Briefings</button>
                   </div>
@@ -767,6 +790,25 @@ export default function App() {
                       ))}
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* BUFFER BUFFER DE ACTIVIDADES ARCHIVADAS (EXCLUSIVO ADMIN) */}
+              {isAdmin && getArchivedTasks().length > 0 && (
+                <div style={{ background:thm.surface, borderRadius:14, padding:24, border:`1px solid ${thm.border}`, marginTop:12 }}>
+                  <div style={{ fontSize:11, color:thm.textMuted, fontWeight:700, letterSpacing:1.5, marginBottom:12, textTransform:"uppercase" }}>📁 Historial de Actividades Archivadas (Mesa de Control)</div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                    {getArchivedTasks().map(t => (
+                      <div key={t.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", background:thm.inputBg, borderRadius:10, border:`1px solid ${thm.border}`, opacity:0.6 }}>
+                        <span style={{ fontSize:12, color:thm.textMuted }}>📁</span>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontSize:13, color:thm.textSub }}>{t.text}</div>
+                          <div style={{ fontSize:10, color:thm.textMuted, marginTop:2 }}>Proyecto: {t.cname}</div>
+                        </div>
+                        <button className="btn-action" onClick={()=>restoreTask(t.id)} style={{ background:"none", border:`1px solid ${thm.border}`, color:thm.textSub, padding:"3px 10px", borderRadius:6, fontSize:10, cursor:"pointer" }}>Reabrir ↺</button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -791,7 +833,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ══ VIEW: CONFIGURACIONES (ADMIN UTILS) ══ */}
+        {/* ══ VIEW: CONFIGURACIONES (ADMIN UTILS COMPLETOS) ══ */}
         {view === "admin-utils" && isAdmin && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg }}>
             <h2 className="font-serif" style={{ margin:"0 0 8px 0", fontSize:30 }}>⚙ Configuración del Flujo Matrix</h2>
@@ -808,15 +850,24 @@ export default function App() {
               ))}
             </div>
 
-            {/* PROYECTOS CREAR/EDITAR */}
+            {/* PROYECTOS CREAR/ARCHIVAR/ELIMINAR */}
             <div style={{ background:thm.surface, borderRadius:14, border:`1px solid ${thm.border}`, padding:20 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}><div style={{ fontSize:14, fontWeight:700 }}>2. Control y Registro de Proyectos</div><button onClick={() => setShowNewProject(!showNewProject)} style={{ padding:"5px 12px", background:thm.accentBg, color:thm.accentText, border:"none", borderRadius:6, fontSize:11, fontWeight:700, cursor:"pointer" }}>{showNewProject?"Cancelar":"+ Nuevo Proyecto"}</button></div>
               {showNewProject && (
                 <div style={{ display:"flex", gap:10, background:thm.inputBg, padding:12, borderRadius:8, marginBottom:12 }}><input value={newProjectData.name} onChange={e=>setNewProjectData(p=>({...p, name:e.target.value}))} placeholder="Nombre de la marca..." style={{...inpStyle, flex:2}}/><select value={newProjectData.type} onChange={e=>setNewProjectData(p=>({...p, type:e.target.value}))} style={inpStyle}>{TYPES.map(t=><option key={t} value={t}>{t}</option>)}</select><button onClick={createProject} style={{ background:"#4ade80", color:thm.bg, border:"none", borderRadius:6, padding:"0 16px", fontWeight:700, cursor:"pointer" }}>Crear</button></div>
               )}
-              {clients.map(c => (
-                <div key={c.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"8px 0", borderBottom:`1px solid ${thm.borderLight}` }}><div style={{ width:6, height:6, borderRadius:"50%", background:STA_CLR[c.status] }}/><div style={{ flex:1, fontSize:13 }}>{c.name} <span style={{ fontSize:9, color:thm.textMuted }}>({c.type || "proyecto"})</span></div><button onClick={() => archiveProject(c.id, c.name)} style={{ background:"none", border:`1px solid ${thm.deleteBorder}`, color:thm.deleteText, padding:"4px 10px", borderRadius:6, fontSize:11, cursor:"pointer" }}>Archivar</button></div>
-              ))}
+              <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                {clients.filter(c => c.dbStatus !== "archived").map(c => (
+                  <div key={c.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"8px 12px", background:thm.inputBg, borderRadius:8, border:`1px solid ${thm.border}` }}>
+                    <div style={{ width:6, height:6, borderRadius:"50%", background:STA_CLR[c.status] }}/>
+                    <div style={{ flex:1, fontSize:13 }}>{c.name} <span style={{ fontSize:9, color:thm.textMuted }}>({c.type || "proyecto"})</span></div>
+                    <div style={{ display:"flex", gap:6 }}>
+                      <button onClick={() => archiveProject(c.id, c.name)} style={{ background:"none", border: `1px solid ${thm.border}`, color: thm.textSub, padding:"4px 10px", borderRadius:6, fontSize:11, cursor:"pointer" }}>Archivar</button>
+                      <button onClick={() => deleteProject(c.id, c.name)} style={{ background:"none", border: `1px solid ${thm.deleteBorder}`, color: thm.deleteText, padding:"4px 10px", borderRadius:6, fontSize:11, cursor:"pointer" }}>Eliminar</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}

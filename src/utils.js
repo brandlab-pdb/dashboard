@@ -1,11 +1,11 @@
 export const ORG_ID = "00000000-0000-0000-0000-000000000001";
 export const WIP_LIMIT = 5;
 export const MAX_TASK_LEN = 200;
-export const WHO_LIST = ["Héctor", "Arturo", "Diego"];
+export const WHO_LIST = ["EK", "Artur", "Diego"];
 export const TYPES = ["membresía", "proyecto", "prospecto", "admin"];
 export const PRIO_ORDER = { high: 0, medium: 1, low: 2 };
 export const PRIO_CYCLE = ["high", "medium", "low"];
-export const font = "'DM Sans', system-ui, sans-serif";
+export const font = "'Plus Jakarta Sans', system-ui, sans-serif";
 
 export const CREATIVE_SERVICES_CATALOG = [
   { id: "srv_reel", name: "Edición de Reel", type: "video" },
@@ -14,6 +14,13 @@ export const CREATIVE_SERVICES_CATALOG = [
   { id: "srv_promo", name: "Video Promocional", type: "video" },
   { id: "srv_post", name: "Post Suelto", type: "design" },
   { id: "srv_loc", name: "Grabar Locación", type: "production" }
+];
+
+export const TASK_CATS = [
+  { value: "🔥", label: "🔥 Rápida (<10 min)" },
+  { value: "📚", label: "📚 Trabajo Profundo" },
+  { value: "🧑‍🧒‍🧒", label: "🧑‍🧒‍🧒 Reunión / Prospecto" },
+  { value: "🧠", label: "🧠 Aprendizaje" },
 ];
 
 export const STATE_CYCLE = {
@@ -73,9 +80,15 @@ export const deadlineInfo = (dl) => {
 
 export const toWho = (name) => {
   const n = (name || "").toLowerCase();
-  if (n.includes("ektor") || n.includes("héct") || n.includes("hect") || n === "ek") return "Héctor";
-  if (n.includes("artur")) return "Arturo";
+  if (n.includes("ektor") || n.includes("héct") || n.includes("hect") || n === "ek") return "EK";
+  if (n.includes("artur")) return "Artur";
   return "Diego";
+};
+
+export const toDbName = (who) => {
+  if (who === "EK") return "Ektor";
+  if (who === "Artur") return "Arturo Macías";
+  return "Diego Beltrán";
 };
 
 export const getMemberColor = (name) => {
@@ -120,41 +133,34 @@ export const injectStyles = () => {
   const s = document.createElement("style");
   s.id = "versiona-styles";
   s.textContent = `
-    @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
-    *{font-family:'DM Sans',system-ui,sans-serif!important;box-sizing:border-box;}
+    @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+    *{font-family:'Plus Jakarta Sans',system-ui,sans-serif!important;box-sizing:border-box;}
     .font-serif{font-family:'DM Serif Display',Georgia,serif!important;font-weight:normal;}
     ::-webkit-scrollbar{width:3px;height:3px}
     ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.1);border-radius:3px}
-    input,select,textarea{font-family:'DM Sans',sans-serif!important; outline:none;}
+    input,select,textarea{font-family:'Plus Jakarta Sans',sans-serif!important; outline:none;}
     input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(0.5);cursor:pointer;}
     select option{background:#11141a;}
     @keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
     .fade-up{animation:fadeUp 0.3s ease-out forwards;}
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
     .pulse{animation:pulse 2s ease-in-out infinite;}
-    @keyframes livepulse{0%,100%{transform:scale(1);opacity:0.4;}50%{transform:scale(1.4);opacity:0.1;}}
+    @keyframes livepulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(74,222,128,0.45)}50%{opacity:.7;box-shadow:0 0 0 6px rgba(74,222,128,0)}}
+    .live-dot{width:8px;height:8px;border-radius:50%;background:#4ade80;animation:livepulse 2s ease-in-out infinite;flex-shrink:0;}
     .prog-bar{height:3px;background:#1c222d;border-radius:2px;overflow:hidden;border:1px solid rgba(255,255,255,0.06);}
     .prog-fill{height:100%;border-radius:2px;transition:width 0.4s;}
     .nav-btn{padding:8px 16px;border:none;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;transition:all .2s;white-space:nowrap;}
     .task-row{transition:all .15s;} .task-row:hover{transform:translateY(-1px);}
     .btn-action{transition:all .15s;} .btn-action:hover{filter:brightness(1.15);}
     .eye-btn{background:none;border:none;cursor:pointer;color:rgba(238,240,243,0.4);padding:0 4px;font-size:16px;transition:color .15s;position:absolute;right:12px;top:50%;transform:translateY(-50%);}
-    .kpi{background:#11141a;border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:16px;position:relative;overflow:hidden;}
-    .kpi::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;}
-    .kpi.k-green::before{background:#4ade80;} .kpi.k-red::before{background:#f87171;} .kpi.k-blue::before{background:#38bdf8;}
-    .kpi-val{font-family:'DM Serif Display',serif;font-size:26px;line-height:1;}
-    .kpi-lbl{font-size:10px;color:rgba(238,240,243,0.38);margin-top:6px;}
+    .kpi-card{background:#11141a;border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:20px;position:relative;overflow:hidden;}
+    .kpi-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;}
+    .kpi-green::before{background:#4ade80;} .kpi-yellow::before{background:#facc15;} .kpi-red::before{background:#f87171;} .kpi-blue::before{background:#60a5fa;}
     .semaforo-win{background:rgba(74,222,128,0.05);border:1px solid rgba(74,222,128,0.2);border-radius:10px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start;}
     .semaforo-warn{background:rgba(250,204,21,0.05);border:1px solid rgba(250,204,21,0.2);border-radius:10px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start;}
     .semaforo-risk{background:rgba(248,113,113,0.05);border:1px solid rgba(248,113,113,0.2);border-radius:10px;padding:14px 16px;display:flex;gap:12px;align-items:flex-start;}
     .week-divider{display:flex;align-items:center;gap:12px;margin:20px 0 10px;}
     .week-divider-line{flex:1;height:1px;background:rgba(255,255,255,0.06);}
-
-    /* AVATAR GLOW CSS */
-    .avatar-container { position:relative; display:inline-flex; align-items:center; justify-content:center; width:38px; height:38px; cursor:pointer; }
-    .avatar-glow { position:absolute; width:100%; height:100%; border-radius:50%; animation:livepulse 2.5s infinite ease-in-out; z-index:0; transition:all 0.3s; opacity:0.4; }
-    .avatar-container:hover .avatar-glow { transform:scale(1.4); opacity:0.8; animation:none; box-shadow:0 0 15px currentColor; }
-    .avatar-circle { position:relative; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:700; z-index:1; background:#161b24; box-shadow:0 2px 8px rgba(0,0,0,0.4); }
   `;
   document.head.appendChild(s);
 };
