@@ -86,6 +86,17 @@ const toWho = (name) => {
 
 const toDbName = (who) => who === "EK" ? "Ektor" : who === "Artur" ? "Arturo Macías" : "Diego Beltrán";
 
+// ¡AQUÍ ESTÁ LA FUNCIÓN QUE FALTABA!
+const getMemberColor = (name) => {
+  const n = (name || "").toLowerCase();
+  if (n.includes("diego")) return "#F47920";
+  if (n.includes("artur")) return "#7F77DD";
+  if (n.includes("héct") || n.includes("ek")) return "#378ADD";
+  const palette = ["#f472b6", "#34d399", "#fbbf24", "#60a5fa", "#a78bfa", "#f87171"];
+  let hash = 0; for(let i=0; i<name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return palette[Math.abs(hash) % palette.length];
+};
+
 const sortProjects = (list) => [...list].sort((a, b) => {
   const pendA = a.tasks ? a.tasks.filter(t=>t.state!=="done").length : 0;
   const pendB = b.tasks ? b.tasks.filter(t=>t.state!=="done").length : 0;
@@ -329,9 +340,7 @@ export default function App() {
   const [clients,       setClients]       = useState([]);
   const [teamMembers,   setTeamMembers]   = useState([]);
   const [activeClient,  setActiveClient]  = useState(null);
-  const [showForm,      setShowForm]      = useState(false);
   const [showDone,      setShowDone]      = useState(false);
-  const [editingDl,     setEditingDl]     = useState(null);
   const [newTask,       setNewTask]       = useState({ text:"", who:"EK", priority:"medium", category:"🔥" });
   const [apiKey,        setApiKey]        = useState("");
 
@@ -342,11 +351,6 @@ export default function App() {
   }, []);
 
   useEffect(() => { injectStyles(); }, []);
-
-  // DECLARACIÓN INTERNA DE NAVBN ANTES DE SU PRIMER USO POSIBLE
-  const navBtn = (id, label, accentColor) => (
-    <button className="nav-btn" key={id} onClick={()=>setView(id)} style={{ background:view===id?(accentColor||thm.accentBg):"transparent", color:view===id?(accentColor?"#080a0e":thm.accentText):thm.textSub }}>{label}</button>
-  );
 
   const syncPipeline = useCallback(async () => {
     setSaving(true);
@@ -382,8 +386,14 @@ export default function App() {
     e.preventDefault();
     const code = accessCode.trim().toLowerCase();
     let match = ACCESS_CODES_STATIC[code];
+    if (!match) {
+      try {
+        const { data: dbCode } = await supabase.from("access_codes").select("*").eq("code", code).eq("is_active", true).maybeSingle();
+        if (dbCode) match = { role: dbCode.role, user: dbCode.user_name };
+      } catch { console.warn("Capa estática activada."); }
+    }
     if (match) {
-      setSession({ loggedIn:true, ...match });
+      setSession({ loggedIn: true, ...match });
       setLoginError(false);
     } else { setLoginError(true); }
   };
@@ -467,6 +477,10 @@ export default function App() {
   const client          = clients.find(c => c.id === activeClient) || regularProjects[0] || adminProjects[0];
 
   const rowProps = { teamMembers, onCycleState: cycleState, onCycleWho: cycleWho, onCyclePrio: cyclePrio, onCompleteTask: completeTask, onRestoreTask: restoreTask, onDeleteTask: deleteTask, onUpdateTitle: updateTitle, isAdmin, thm };
+
+  const navBtn = (id, label, accentColor) => (
+    <button className="nav-btn" key={id} onClick={()=>setView(id)} style={{ background:view===id?(accentColor||thm.accentBg):"transparent", color:view===id?(accentColor?"#080a0e":thm.accentText):thm.textSub }}>{label}</button>
+  );
 
   if (!session.loggedIn) {
     const currentDate = now.toLocaleDateString("es-MX", { weekday:"long", day:"2-digit", month:"long", year:"numeric" });
