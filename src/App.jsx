@@ -495,6 +495,18 @@ export default function App() {
   const client       = clients.find(c=>c.id===activeClient) || sortedActive[0] || adminProjects[0];
   const blockedAll   = clients.flatMap(c=>c.tasks ? c.tasks.filter(t=>t.state==="blocked").map(t=>({...t,cname:c.name,cid:c.id})) : []);
   
+ // ── DATA ENGINE DERIVADA ──
+  const isAdmin         = session.role === "admin" || session.role === "superadmin";
+  const isSuperAdmin    = session.role === "superadmin";
+  const adminProjects   = clients.filter(c => (c.type==="admin" || c.name.toLowerCase().includes("admin")) && c.dbStatus !== "archived");
+  const regularProjects = clients.filter(c => !adminProjects.some(a=>a.id===c.id) && c.dbStatus !== "archived");
+  const activeProjects  = regularProjects.filter(c => c.tasks && c.tasks.some(t => t.state !== "done" && t.state !== "archived"));
+  const allActiveProjectsList = clients.filter(c => c.dbStatus !== "archived");
+  
+  const sortedActive = sortProjects(activeProjects);
+  const client       = clients.find(c=>c.id===activeClient) || sortedActive[0] || adminProjects[0];
+  const blockedAll   = clients.flatMap(c=>c.tasks ? c.tasks.filter(t=>t.state==="blocked").map(t=>({...t,cname:c.name,cid:c.id})) : []);
+  
   const getActive = (tasks) => {
     if (!tasks || !Array.isArray(tasks)) return [];
     let list = tasks.filter(t => t.state !== "done" && t.state !== "archived");
@@ -513,11 +525,17 @@ export default function App() {
   const allBlock     = blockedAll.length;
   const allOver      = clients.reduce((acc, c) => acc + (c.tasks ? c.tasks.filter(t => { const d = deadlineInfo(t.deadline); return d && d.status === "due" && t.state !== "done" && t.state !== "archived"; }).length : 0), 0);
 
+  const navBtn = (id, label, accentColor) => ( 
+    <button className="nav-btn" key={id} onClick={()=>setView(id)} style={{ background:view===id?(accentColor||thm.accentBg):"transparent", color:view===id?(accentColor?"#080a0e":thm.accentText):thm.textSub }}>
+        {label}
+    </button> 
+  );
+
   const rowProps = { teamMembers, activeProjectsList: allActiveProjectsList, onCycleState: cycleState, onCycleWho: cycleWho, onCyclePrio: cyclePrio, onCompleteTask: completeTask, onRestoreTask: restoreTask, onDeleteTask: deleteTask, onArchiveTask: archiveTask, onChangeTaskProject: changeTaskProject, onSetDl: setDl, editingDl, setEditingDl, isAdmin };
+  
   const totalActiveTasksGlobal = clients.flatMap(c=>c.tasks ? c.tasks.filter(t=>t.state!=="done" && t.state!=="archived") : []).length;
   const timeStr = now.toLocaleDateString("es-MX", { weekday:"short", day:"2-digit", month:"short" }) + " · " + now.toLocaleTimeString("es-MX", { hour:"2-digit", minute:"2-digit" }); 
   const inpStyle = { background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, fontSize:12, padding:"9px 12px", outline:"none" };
-
   // ── SCREEN LOGIN ──
   if (!session.loggedIn) {
     const currentDate = now.toLocaleDateString("es-MX", { weekday:"long", day:"2-digit", month:"long", year:"numeric" });
