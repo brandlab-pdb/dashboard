@@ -50,9 +50,6 @@ const thm = {
   deleteBg:    "rgba(248,113,113,0.1)",
   deleteText:  "#f87171",
   deleteBorder:"rgba(248,113,113,0.2)",
-  tagHéctor: { bg:"rgba(55,138,221,0.1)", text:"#378ADD", border:"rgba(55,138,221,0.2)" },
-  tagArturo: { bg:"rgba(127,119,221,0.1)", text:"#7F77DD", border:"rgba(127,119,221,0.2)" },
-  tagDiego:  { bg:"rgba(212,83,126,0.1)", text:"#D4537E", border:"rgba(212,83,126,0.2)" },
   states: {
     pending:   { bg:"#161b24",              text:"rgba(238,240,243,0.5)", border:"rgba(255,255,255,0.08)", label:"Pendiente"   },
     inprogress:{ bg:"rgba(250,204,21,0.1)", text:"#facc15", border:"rgba(250,204,21,0.2)",  label:"En proceso"  },
@@ -170,42 +167,7 @@ const injectStyles = () => {
   document.head.appendChild(s);
 };
 
-// ── COMPONENTE: WEEKLY CHART RENDIMIENTO ───────────────────────────────────
-function WeeklyChart({ allDone }) {
-  const weeks = {};
-  allDone.forEach(t => {
-    if (!t.completedAt) return;
-    const { key, label } = getWeekKey(t.completedAt);
-    const shortLabel = label.split("·")[1].replace("Inicia el ", "").trim();
-    if (!weeks[key]) weeks[key] = { label: shortLabel, count:0 };
-    weeks[key].count++;
-  });
-  const data = Object.entries(weeks).sort((a,b) => a[0].localeCompare(b[0])).slice(-8);
-  if (!data.length) return null;
-  const max = Math.max(...data.map(([,w])=>w.count), 1);
-  const BAR_H = 60;
-
-  return (
-    <div className="fade-up" style={{ background:thm.surface, borderRadius:12, padding:"18px 20px", border:`1px solid ${thm.border}`, marginBottom:28 }}>
-      <div style={{ fontSize:10, color:thm.textMuted, letterSpacing:1.5, textTransform:"uppercase", fontWeight:700, marginBottom:14 }}>Volumen de Entregas por Semana</div>
-      <div style={{ display:"flex", alignItems:"flex-end", gap:6, height:BAR_H + 36 }}>
-        {data.map(([key, w], i) => {
-          const barH = Math.max(4, (w.count / max) * BAR_H);
-          const opacity = 0.55 + (i / Math.max(data.length - 1, 1)) * 0.45;
-          return (
-            <div key={key} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:4, height:"100%", justifyContent:"flex-end" }}>
-              <span style={{ fontSize:10, color:"#4ade80", fontWeight:700 }}>{w.count}</span>
-              <div style={{ width:"100%", borderRadius:"3px 3px 0 0", background:`rgba(74,222,128,${opacity})`, height:`${barH}px`, transition:"height 0.6s", boxShadow:`0 0 8px rgba(74,222,128,${opacity * 0.5})` }}/>
-              <span style={{ fontSize:8, color:thm.textMuted, textAlign:"center", lineHeight:1.2, whiteSpace:"nowrap" }}>{w.label}</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ── COMPONENTE SUB-TABULA: INFORME Y AUDITORÍA SEMANAL EXCLUSIVA ─────────────
+// ── COMPONENTE: INFORME Y AUDITORÍA SEMANAL CON SEMÁFOROS ───────────────────
 function AnalysisTab({ clients, allDone, teamMembers, weekGroups }) {
   const [reportData, setReportData] = useState({ success: "", warning: "", issue: "", notes: "" });
   const [waBriefs, setWaBriefs] = useState(null);
@@ -217,14 +179,14 @@ function AnalysisTab({ clients, allDone, teamMembers, weekGroups }) {
   const generateDailyBriefs = () => {
     setWaBriefs({
       Héctor: "🔥 *Versiona Daily Brief · Héctor*\n• Terminar el 4to video para cierre de MX Travel 🎬.\n• Modificar flyers promocionales de Osos Flag.",
-      Arturo: "📚 *Versiona Daily Brief · Arturo*\n• Cerrar propuesta recurrente JLFC / AO $5k/mes 🚀.\n• Agendar sesión de contenido semanal con La Chula.",
+      Arturo: "📚 *Versiona Daily Brief · Arturo*\n• Cerrar propuesta comercial JLFC / AO $5k/mes 🚀.\n• Agendar sesión de contenido semanal con La Chula.",
       Diego: "🧠 *Versiona Daily Brief · Diego*\n• Validar código de la landing page de SG Arquitectura.\n• Coordinar tomas locación Karola con Javier."
     });
   };
 
   return (
     <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg, width:"100%" }}>
-      <div style={{ display:"flex", justifyContent:"space-between", alignMembresias:"flex-end", marginBottom:20 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-end", marginBottom:20 }}>
         <div>
           <h2 className="font-serif" style={{ margin:"0 0 6px 0", fontSize:32 }}>📊 Análisis Semanal</h2>
           <p style={{ fontSize:13, color:thm.textSub, margin:0 }}>Auditoría de 15 min. {totalCuentas} cuentas activas · {teamMembers.length} personas</p>
@@ -267,7 +229,7 @@ function AnalysisTab({ clients, allDone, teamMembers, weekGroups }) {
 
         {/* INPUTS DE EVALUACIÓN */}
         <div style={{ background:thm.surface, borderRadius:14, padding:24, border:`1px solid ${thm.border}` }}>
-          <div style={{ fontSize:10, color:thm.textMuted, letterSpacing:1.5, textTransform:"uppercase", marginBottom:16, fontWeight:700 }}>Indicadores clave — llena según tu observación</div>
+          <div style={{ fontSize:10, color:thm.textMuted, letterSpacing:1.5, textTransform:"uppercase", marginBottom:16, fontWeight:700 }}>Indicadores clave — llena según tu observation</div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
             <div>
               <label style={{ fontSize:10, color:thm.textMuted, fontWeight:700, display:"block", marginBottom:6 }}>ADOPCIÓN REAL (%) — uso Dashboard vs WhatsApp</label>
@@ -314,7 +276,7 @@ function AnalysisTab({ clients, allDone, teamMembers, weekGroups }) {
 
         {/* WHATSAPP BRIEFING LOOP */}
         <div style={{ background:thm.surface, borderRadius:14, padding:24, border:`1px solid ${thm.border}` }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignMembresias:"center", marginBottom:16 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
             <div>
               <div style={{ fontSize:14, fontWeight:700 }}>WhatsApp Daily Brief Loop</div>
               <div style={{ fontSize:11, color:thm.textMuted }}>Genera la matriz de comunicación limpia para distribución en pauta.</div>
@@ -330,7 +292,7 @@ function AnalysisTab({ clients, allDone, teamMembers, weekGroups }) {
                     <span style={{ fontSize:12, fontWeight:700, color:getMemberColor(name) }}>{name}</span>
                     <button onClick={() => navigator.clipboard.writeText(msg)} style={{ background:"none", border:"none", color:"#4ade80", fontSize:10, cursor:"pointer", fontWeight:700 }}>Copiar</button>
                   </div>
-                  <pre style={{ margin:0, fontSize:11, whiteSpace:"pre-wrap", color:thm.textSub, fontFamily:"inherit", lineHeight:1.5 }}>{msg}</pre>
+                  <pre style={{ margin:0, fontSize:11, whiteSpace:"pre-wrap", color:thm.textSub, lineHeight:1.5, fontFamily:"inherit" }}>{msg}</pre>
                 </div>
               ))}
             </div>
@@ -372,7 +334,7 @@ function TaskRow({ task, cid, teamMembers, onCycleState, onCycleWho, onCyclePrio
           ) : (
             <span style={{ fontSize:13, color:isDone?thm.textMuted:thm.text, textDecoration:isDone?"line-through":"none", fontWeight:500, lineHeight:1.5 }}>{task.text}</span>
           )}
-          {!isDone && isAdmin && !isEditing && <button onClick={() => setIsEditing(true)} style={{ background:"none", border:"none", cursor:"pointer", opacity:0.5, fontSize:11 }}>✏️</button>}
+          {!isDone && isAdmin && !isEditing && <button onClick={() => { setIsEditing(true); setTitleInput(task.text); }} style={{ background:"none", border:"none", cursor:"pointer", opacity:0.5, fontSize:11 }}>✏️</button>}
         </div>
 
         {days > 0 && <div style={{ fontSize:10, color:days>=3?"#f87171":"#facc15", fontWeight:600, marginBottom:4 }}>⏱ {days}d esperando · follow-up hoy</div>}
@@ -438,7 +400,7 @@ function TeamTab({ teamMembers, clients, totalActiveEquipo, pieStyle }) {
                 </div>
                 <div>
                   <div style={{ fontSize:14, fontWeight:600, color:mColor }}>{m.name}</div>
-                  <div style={{ fontSize:10, color:thm.textMuted }}>{m.name === "Diego" ? "PM · Arquitectura" : m.name === "Arturo" ? "Dirección · Comunicación" : "Operación · Production"}</div>
+                  <div style={{ fontSize:10, color:thm.textMuted }}>{m.name === "Diego" ? "PM · Arquitectura" : m.name === "Arturo" ? "Dirección · Comunicación" : "Operación · Producción"}</div>
                 </div>
               </div>
               <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
@@ -475,7 +437,8 @@ function TeamTab({ teamMembers, clients, totalActiveEquipo, pieStyle }) {
   );
 }
 
-export function App() {
+// ── EL ENRUTADOR PRINCIPAL DEL FLUJO ──────────────────────────────────────═
+export default function App() {
   const [session,       setSession]       = useState({ loggedIn:false, role:null, user:null });
   const [accessCode,    setAccessCode]    = useState("");
   const [showPass,      setShowPass]      = useState(false);
@@ -610,37 +573,17 @@ export function App() {
   
   const pieStyle = { width: 140, height: 140, borderRadius: "50%", background: pieGradientParts ? `conic-gradient(${pieGradientParts})` : thm.border, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 6px 24px rgba(0,0,0,0.5)" };
 
-  if (!session.loggedIn) {
-    return (
-      <div style={{ height:"100vh", background:thm.bg, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-        <form onSubmit={handleLogin} className="fade-up" style={{ background:thm.surface, padding:40, borderRadius:16, border:`1px solid ${thm.border}`, width:"100%", maxWidth:360, textAlign:"center" }}>
-          <div className="font-serif" style={{ fontSize:26, marginBottom:6, color:thm.text }}>VERSIONA<span style={{ color:"#F47920" }}>O</span><span style={{ color:"#29ABE2", fontStyle:"italic" }}>S</span></div>
-          <div style={{ fontSize:10, color:thm.textMuted, letterSpacing:2, marginBottom:6, textTransform:"uppercase" }}>Workspace de Producción</div>
-          <div style={{ fontSize:11, color:thm.textMuted, marginBottom:32 }}>{now.toLocaleDateString("es-MX", { weekday:"long", day:"2-digit", month:"long", year:"numeric" })}</div>
-          <div style={{ position:"relative", marginBottom:10 }}>
-            <input type={showPass ? "text" : "password"} value={accessCode} onChange={e => setAccessCode(e.target.value)} placeholder="Código de acceso al equipo" autoFocus style={{ width:"100%", background:thm.inputBg, border:`1px solid ${loginError?"#f87171":thm.border}`, borderRadius:8, padding:"12px 40px 12px 12px", color:thm.text, fontSize:14, outline:"none", textAlign:"center", letterSpacing:2 }}/>
-            <button type="button" className="eye-btn" onClick={() => setShowPass(!showPass)}>{showPass ? "🙈" : "👁"}</button>
-          </div>
-          {loginError && <div style={{ fontSize:11, color:"#f87171", marginBottom:12, fontWeight:700 }}>CÓDIGO INVÁLIDO</div>}
-          <button type="submit" style={{ width:"100%", background:thm.text, color:thm.bg, border:"none", borderRadius:8, padding:12, fontSize:12, fontWeight:700, cursor:"pointer", letterSpacing:1, textTransform:"uppercase" }}>Acceder al Flujo</button>
-        </form>
-      </div>
-    );
-  }
-
-  if (!loaded) return <div style={{ height:"100vh", background:"#080a0e", display:"flex", alignItems:"center", justifyContent:"center", color:"rgba(238,240,243,0.38)", fontSize:12, letterSpacing:3 }}>SISTEMA INICIADO...</div>;
-
   const timeStr = now.toLocaleDateString("es-MX", { weekday:"short", day:"2-digit", month:"short" }) + " · " + now.toLocaleTimeString("es-MX", { hour:"2-digit", minute:"2-digit" });
 
   return (
-    <div style={{ minHeight:"100vh", background:thm.bg, color:thm.text, display:"flex", flexDirection:"column", fontFamily:font }}>
+    <div style={{ minHeight:"100vh", background:thm.bg, color:thm.text, display:"flex", flexDirection:"column" }}>
       {/* HEADER PREMIUM */}
       <div style={{ borderBottom: `1px solid ${thm.border}`, padding: "0 24px", display:"flex", alignItems:"center", height: 60, flexShrink: 0, background: thm.navBg, justifyContent:"space-between" }}>
         <div className="font-serif" style={{ fontSize: 19, letterSpacing: .5 }}>VERSIONA<span style={{ color: "#F47920" }}>O</span><span style={{ color: "#29ABE2", fontStyle: "italic" }}>S</span></div>
         <div style={{ display: "flex", gap: 3, background: thm.surfaceTop, borderRadius: 10, padding: 3 }}>
           {navBtn("dashboard", "Proyectos")}
           {isAdmin && navBtn("equipo", "Equipo", "#29ABE2")}
-          {isAdmin && navBtn("completadas", "✓ Análisis Semanal", "#4ade80")}
+          {isAdmin && navBtn("completadas", "📊 Análisis Semanal", "#4ade80")}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div style={{ textAlign: "right" }}>
@@ -712,4 +655,3 @@ export function App() {
     </div>
   );
 }
-export default App;
