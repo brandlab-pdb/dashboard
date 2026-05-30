@@ -115,7 +115,7 @@ const groupDoneByWeek = (tasks) => {
   return Object.entries(groups).sort((a,b) => b[0].localeCompare(a[0])).map(([,g]) => g);
 };
 
-// ── INJECT STYLES MATRIZ (DECLARADA AL PRINCIPIO PARA ALCANCE GLOBAL) ───────
+// ── INJECT STYLES MATRIZ ───────────────────────────────────────────────────
 const injectStyles = () => {
   if (document.getElementById("versiona-styles")) return;
   const s = document.createElement("style");
@@ -273,9 +273,51 @@ function AnalysisTab({ allDone, weekGroups, teamMembers, clients, apiKey, setApi
   );
 }
 
-// ══════════════════════════════════════════════════════════════
-// APP MAIN MODULE (EL CEREBRO CENTRAL)
-// ══════════════════════════════════════════════════════════════
+// ── COMPONENTE CARD DE TAREA ───────────────────────────────────────────────
+function TaskRow({ task, cid, teamMembers, onCycleState, onCycleWho, onCyclePrio, onCompleteTask, onRestoreTask, onUpdateTitle, onDeleteTask, isAdmin }) {
+  const isDone = task.state === "done";
+  const days = task.state === "blocked" ? daysSince(task.blockedSince) : 0;
+  const [isEditing, setIsEditing] = useState(false);
+  const [titleInput, setTitleInput] = useState(task.text);
+
+  const handleEditSubmit = () => {
+    setIsEditing(false);
+    if (titleInput.trim() !== task.text) onUpdateTitle(task.id, titleInput);
+  };
+
+  const s = thm.states[task.state] || thm.states.pending;
+  const mColor = getMemberColor(task.who);
+  const revOver = (task.revisions || 0) >= 2;
+
+  return (
+    <div className="task-row fade-up" style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"12px 14px", background:isDone ? thm.surfaceHigh : thm.surface, borderRadius:10, border:`1px solid ${isDone ? thm.borderLight : thm.border}`, borderLeft:`4px solid ${isDone ? thm.border : PRIO_CLR[task.priority] || "#c49a2a"}`, opacity:isDone ? .5 : 1, marginBottom: 6 }}>
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:7 }}>
+          {task.category && <span style={{ fontSize:13 }}>{task.category}</span>}
+          {isEditing ? (
+            <input value={titleInput} onChange={e => setTitleInput(e.target.value)} onBlur={handleEditSubmit} onKeyDown={e => e.key==="Enter" && handleEditSubmit()} autoFocus style={{ background: "#0a0c10", border: `1px solid ${thm.border}`, color: thm.text, fontSize: 13, padding: "2px 8px", borderRadius: 4, width: "100%" }} />
+          ) : (
+            <span style={{ fontSize:13, color:isDone?thm.textMuted:thm.text, textDecoration:isDone?"line-through":"none", fontWeight:500, lineHeight:1.5 }}>{task.text}</span>
+          )}
+          {!isDone && isAdmin && !isEditing && <button onClick={() => { setIsEditing(true); setTitleInput(task.text); }} style={{ background:"none", border:"none", cursor:"pointer", opacity:0.5, fontSize:11 }}>✏️</button>}
+        </div>
+
+        {days > 0 && <div style={{ fontSize:10, color:days>=3?"#f87171":"#facc15", fontWeight:600, marginBottom:4 }}>⏱ {days}d esperando · follow-up hoy</div>}
+        {revOver && <div style={{ fontSize:10, color:"#f87171", fontWeight:700, marginBottom:4 }}>⚠ {task.revisions} rev · escalar a llamada</div>}
+
+        <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+          <button className="btn-action" onClick={() => onCycleState(cid, task.id)} style={{ padding:"3px 10px", borderRadius:20, fontSize:10, fontWeight:600, background:s.bg, color:s.text, border:`1px solid ${s.border}`, cursor:"pointer" }}>{s.label}</button>
+          <button className="btn-action" onClick={() => onCyclePrio(cid, task.id, task.priority)} style={{ padding:"3px 8px", borderRadius:20, fontSize:9, fontWeight:600, background:`${PRIO_CLR[task.priority]}1A`, color:PRIO_CLR[task.priority], border:`1px solid ${PRIO_CLR[task.priority]}33`, cursor:"pointer" }}>{PRIO_LBL[task.priority] || task.priority}</button>
+          <button className="btn-action" onClick={() => onCycleWho(cid, task.id, task.who)} style={{ padding:"3px 10px", borderRadius:20, fontSize:10, fontWeight:600, background:`${mColor}1A`, color:mColor, border:`1px solid ${mColor}33`, cursor:"pointer" }}>{task.who}</button>
+          {!isDone && <button className="btn-action" onClick={() => onCompleteTask(task.id)} style={{ padding:"3px 10px", background:"rgba(74,222,128,0.12)", color:"#4ade80", border:"1px solid rgba(74,222,128,0.25)", borderRadius:20, fontSize:10, fontWeight:700, cursor:"pointer" }}>✓ Terminar</button>}
+        </div>
+      </div>
+      {isAdmin && <button onClick={e => onDeleteTask(task.id, e)} style={{ fontSize:10, color:thm.textFaint, background:"none", border:`1px solid ${thm.borderLight}`, borderRadius:6, padding:"3px 7px", cursor:"pointer" }}>✕</button>}
+    </div>
+  );
+}
+
+// ── APP MAIN MODULE (EL CEREBRO CENTRAL) ────────────────────────────────═══
 export default function App() {
   const [session,       setSession]       = useState({ loggedIn:false, role:null, user:null });
   const [accessCode,    setAccessCode]    = useState("");
@@ -287,7 +329,9 @@ export default function App() {
   const [clients,       setClients]       = useState([]);
   const [teamMembers,   setTeamMembers]   = useState([]);
   const [activeClient,  setActiveClient]  = useState(null);
+  const [showForm,      setShowForm]      = useState(false);
   const [showDone,      setShowDone]      = useState(false);
+  const [editingDl,     setEditingDl]     = useState(null);
   const [newTask,       setNewTask]       = useState({ text:"", who:"EK", priority:"medium", category:"🔥" });
   const [apiKey,        setApiKey]        = useState("");
 
@@ -298,6 +342,11 @@ export default function App() {
   }, []);
 
   useEffect(() => { injectStyles(); }, []);
+
+  // DECLARACIÓN INTERNA DE NAVBN ANTES DE SU PRIMER USO POSIBLE
+  const navBtn = (id, label, accentColor) => (
+    <button className="nav-btn" key={id} onClick={()=>setView(id)} style={{ background:view===id?(accentColor||thm.accentBg):"transparent", color:view===id?(accentColor?"#080a0e":thm.accentText):thm.textSub }}>{label}</button>
+  );
 
   const syncPipeline = useCallback(async () => {
     setSaving(true);
@@ -490,7 +539,7 @@ export default function App() {
               <div style={{ padding:"10px 15px 4px", fontSize:8, color:thm.textMuted, letterSpacing:1.5, textTransform:"uppercase", fontWeight:600 }}>Clientes Activos</div>
               {regularProjects.map(c => (
                 <button key={c.id} onClick={() => { setActiveClient(c.id); setShowDone(false); }} style={{ width:"100%", textAlign:"left", padding:"9px 15px", background:c.id===client.id?thm.surfaceHigh:"transparent", border:"none", borderLeft:c.id===client.id?`3px solid ${STA_CLR[c.status]}`:"3px solid transparent", cursor:"pointer", color:c.id===client.id?thm.text:thm.textSub, fontSize:12 }}>
-                  <div style={{ display:"flex", alignItems:"center", justifycontent:"space-between" }}>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                     <span>{c.name}</span>
                     {c.tasks.filter(t=>t.state!=="done").length > 0 && <span style={{ fontSize:9, color:thm.textMuted }}>{c.tasks.filter(t=>t.state!=="done").length}</span>}
                   </div>
