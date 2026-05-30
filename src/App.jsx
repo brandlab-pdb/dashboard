@@ -78,7 +78,7 @@ function WeeklyChart({ allDone }) {
   );
 }
 
-function TaskRow({ task, cid, teamMembers, onCycleState, onCycleWho, onCyclePrio, onCompleteTask, onRestoreTask, onUpdateTitle, onDeleteTask, onArchiveTask, onSetDl, editingDl, setEditingDl, index, isAdmin }) {
+function TaskRow({ task, cid, teamMembers, activeProjectsList, onCycleState, onCycleWho, onCyclePrio, onCompleteTask, onRestoreTask, onUpdateTitle, onDeleteTask, onArchiveTask, onChangeTaskProject, onSetDl, editingDl, setEditingDl, index, isAdmin }) {
   const isDone = task.state === "done";
   const days = task.state === "blocked" ? daysSince(task.blockedSince) : 0;
   const member = teamMembers.find(m => m.id === task.assigned_to);
@@ -89,7 +89,7 @@ function TaskRow({ task, cid, teamMembers, onCycleState, onCycleWho, onCyclePrio
   const revOver = (task.revisions || 0) >= 2;
 
   return (
-    <div className="task-row fade-up" style={{ display:"flex", alignItems:"flex-start", gap:10, padding:"14px 18px", background:isDone ? thm.surfaceHigh : thm.surface, borderRadius:10, border:`1px solid ${isDone ? thm.borderLight : thm.border}`, borderLeft:`3px solid ${isDone ? thm.borderLight : PRIO_CLR[task.priority]||"#facc15"}`, opacity:isDone ? .4 : 1, marginBottom:6 }}>
+    <div className="task-row fade-up" style={{ display:"flex", alignItems:"center", gap:10, padding:"14px 18px", background:isDone ? thm.surfaceHigh : thm.surface, borderRadius:10, border:`1px solid ${isDone ? thm.borderLight : thm.border}`, borderLeft:`3px solid ${isDone ? thm.borderLight : PRIO_CLR[task.priority]||"#facc15"}`, opacity:isDone ? .4 : 1, marginBottom:6 }}>
       <div style={{ flex:1, minWidth:0 }}>
         <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
           {task.service_id && <span style={{fontSize:9, background:"rgba(192,132,252,0.1)", color:"#c084fc", border:"1px solid rgba(192,132,252,0.2)", padding:"2px 6px", borderRadius:4, fontWeight:700, textTransform:"uppercase"}}>SERVICIO</span>}
@@ -121,6 +121,13 @@ function TaskRow({ task, cid, teamMembers, onCycleState, onCycleWho, onCyclePrio
           ))}
           {days>0 && <span style={{ fontSize:9, color:days>=3?"#f87171":"#facc15", fontWeight:700 }}>⊘ Pausado {days}d</span>}
           {revOver && <span style={{ fontSize:9, color:"#f87171", fontWeight:700 }}>⚠ {task.revisions} rev</span>}
+          
+          {/* RE-ENRUTADOR DE PROYECTOS DISCRETO PARA EL ADMIN */}
+          {isAdmin && !isDone && (
+            <select value={cid} onChange={e => onChangeTaskProject(task.id, e.target.value)} style={{ background: thm.surfaceHigh, border: `1px solid ${thm.border}`, color: thm.textSub, fontSize: 10, padding: "2px 6px", borderRadius: 4, cursor: "pointer" }}>
+              {activeProjectsList.map(p => <option key={p.id} value={p.id}>→ {p.name}</option>)}
+            </select>
+          )}
         </div>
       </div>
       <div style={{ display:"flex", alignItems:"center", gap:6, marginLeft:"auto", flexShrink:0 }}>
@@ -131,7 +138,7 @@ function TaskRow({ task, cid, teamMembers, onCycleState, onCycleWho, onCyclePrio
   );
 }
 
-// ── MAIN APP ENGINE ────────────────────────────────────────────────────────
+// ── COMPONENTE MAESTRO PRINCIPAL ───────────────────────────────────────────
 export default function App() {
   const [session,       setSession]       = useState({ loggedIn:false, role:null, user:null });
   const [accessCode,    setAccessCode]    = useState("");
@@ -148,19 +155,23 @@ export default function App() {
   const [showDone,      setShowDone]      = useState(false);
   const [editingDl,     setEditingDl]     = useState(null);
   const [newTask,       setNewTask]       = useState({ text:"", whoId:"", priority:"medium", category:"🔥", projectId:null, is_service:false, service_id:"" });
-  const [expandedWho,   setExpandedWho]   = useState(null);
   const [orderCriteria, setOrderCriteria] = useState("default");
   
+  // Estados de Configuración Avanzada
   const [showNewProject, setShowNewProject] = useState(false);
-  const [newProjectData, setNewProjectData] = useState({ name:"", type:"", cost:0, cycle:"mensual", cutoff:1 });
+  const [newProjectData, setNewProjectData] = useState({ name:"", type:"membresía" });
   const [newMemberName,  setNewMemberName]  = useState("");
   const [showNewMember,  setShowNewMember]  = useState(false);
-  const [editingProject, setEditingProject] = useState(null);
-  const [editProjData,   setEditProjData]   = useState({});
   const [feedbackMsg,    setFeedbackMsg]    = useState("");
-  const [feedbackType,   setFeedbackType]   = useState("Operación");
   const [feedbackSuccess, setFeedbackSuccess] = useState(false);
   const [waBriefs,       setWaBriefs]       = useState(null);
+  const [projectFilterTab, setProjectFilterTab] = useState("active");
+  const [securityLogs,   setSecurityLogs]   = useState([]);
+
+  // Estados del Gestor de Contraseñas / Códigos Supabase
+  const [dbAccessCodes,  setDbAccessCodes]  = useState([]);
+  const [newCodeForm,    setNewCodeForm]    = useState({ code:"", user_name:"", role:"team" });
+  const [showNewCode,    setShowNewCode]    = useState(false);
 
   const [now, setNow] = useState(new Date());
   useEffect(() => { const timer = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(timer); }, []);
@@ -176,7 +187,7 @@ export default function App() {
         match = { role: dbCode.role, user: dbCode.user_name };
         await supabase.from("access_codes").update({ last_login: new Date().toISOString() }).eq("code", code);
       }
-    } catch (err) { console.warn("Usando fallback estático."); }
+    } catch (err) { console.warn("Fallback estático."); }
 
     if (!match) match = ACCESS_CODES_STATIC[code];
     if (match) {
@@ -202,7 +213,11 @@ export default function App() {
          try {
             const { data: dbFeedback } = await supabase.from("feedback_items").select("*").order("created_at", { ascending: false });
             setFeedbackItems(dbFeedback || []);
-         } catch(e) { console.warn("feedback_items table temporal."); }
+            const { data: dbLogs } = await supabase.from("security_logs").select("*").order("created_at", { ascending: false }).limit(20);
+            setSecurityLogs(dbLogs || []);
+            const { data: dbCodes } = await supabase.from("access_codes").select("*").order("created_at", { ascending: false });
+            setDbAccessCodes(dbCodes || []);
+         } catch(e) { console.warn("Tablas administrativas diferidas."); }
       }
       
       setTeamMembers(dbMembers || []);
@@ -223,7 +238,7 @@ export default function App() {
         if (tasks.some(t=>t.state==="blocked")) calcStatus = "red";
         else if (tasks.some(t=>t.state==="inprogress")) calcStatus = "yellow";
         
-        return { id:proj.id, name:proj.name, type:proj.client || "", status:calcStatus, dbStatus:proj.status, cost: proj.service_cost || 0, cycle: proj.billing_cycle || "mensual", cutoff: proj.cutoff_date || 1, tasks };
+        return { id:proj.id, name:proj.name, type:proj.client || "membresía", status:calcStatus, dbStatus:proj.status, cost: proj.service_cost || 0, cycle: proj.billing_cycle || "mensual", cutoff: proj.cutoff_date || 1, tasks };
       });
 
       setClients(mapped);
@@ -234,7 +249,6 @@ export default function App() {
 
   useEffect(() => { if (session.loggedIn) syncPipeline(); }, [session.loggedIn, syncPipeline]);
 
-  // ── PUENTE PUERTA DE AUTORIZACIÓN PROTEGIDA (GATING CODES) ──
   const verifyGatedAction = async (actionLabel, taskText) => {
     if (isAdmin) return true;
     const code = prompt(`Acción Protegida: Introduce el código de autorización de Administrador para ${actionLabel} "${taskText}":`);
@@ -244,7 +258,7 @@ export default function App() {
       try {
         await supabase.from("feedback_items").insert([{
           user_name: session.user || "Equipo",
-          message: `[Código de Seguridad] Acción de [${actionLabel}] autorizada en actividad: "${taskText}".`,
+          message: `[Código de Seguridad] Acción de [${actionLabel}] autorizada por código en actividad: "${taskText}".`,
           status: "open"
         }]);
       } catch (err) { console.warn("Error notificando"); }
@@ -301,6 +315,15 @@ export default function App() {
     setSaving(false);
   };
 
+  const changeTaskProject = async (tid, newProjectId) => {
+    setSaving(true);
+    try {
+      await supabase.from("tasks").update({ project_id: newProjectId }).eq("id", tid);
+      await syncPipeline();
+    } catch(e) { console.error(e); }
+    setSaving(false);
+  };
+
   const cyclePrio = async (cid, tid, cur) => {
     const next = PRIO_CYCLE[(PRIO_CYCLE.indexOf(cur)+1) % PRIO_CYCLE.length];
     setSaving(true);
@@ -350,9 +373,29 @@ export default function App() {
     setSaving(false);
   };
 
+  // BUZÓN DE FRICTION INTELIGENTE (CLASIFICACIÓN DETERMINISTA AUTOMÁTICA)
+  const handleFeedbackSubmit = async (e) => {
+    e.preventDefault(); if(!feedbackMsg.trim()) return; setSaving(true);
+    
+    const msgLower = feedbackMsg.toLowerCase();
+    let computedType = "Operación";
+    if (msgLower.includes("falla") || msgLower.includes("bug") || msgLower.includes("lento") || msgLower.includes("error") || msgLower.includes("no carga")) {
+      computedType = "Soporte Técnico";
+    } else if (msgLower.includes("cliente") || msgLower.includes("marca") || msgLower.includes("brief") || msgLower.includes("cambio")) {
+      computedType = "Cliente";
+    }
+
+    try { 
+      await supabase.from("feedback_items").insert([{ user_name: session.user, message: `[${computedType}] ${feedbackMsg}`, status: "open" }]); 
+      setFeedbackMsg(""); setFeedbackSuccess(true); setTimeout(() => setFeedbackSuccess(false), 3000); 
+      await syncPipeline();
+    } catch (err) { console.warn("Feedback diferido."); }
+    setSaving(false);
+  };
+
   const createProject = async () => {
     if (!newProjectData.name.trim()) return; setSaving(true);
-    try { await supabase.from("projects").insert([{ org_id: ORG_ID, name: newProjectData.name.trim(), client: newProjectData.type, status: "active" }]); setNewProjectData({ name:"", type:"", cost:0, cycle:"mensual", cutoff:1 }); setShowNewProject(false); await syncPipeline(); } catch (e) { console.error(e); }
+    try { await supabase.from("projects").insert([{ org_id: ORG_ID, name: newProjectData.name.trim(), client: newProjectData.type, status: "active" }]); setNewProjectData({ name:"", type:"membresía" }); setShowNewProject(false); await syncPipeline(); } catch (e) { console.error(e); }
     setSaving(false);
   };
 
@@ -364,6 +407,15 @@ export default function App() {
       if (activeClient === projectId) setActiveClient(null); 
       await syncPipeline(); 
     } catch (e) { console.error(e); }
+    setSaving(false);
+  };
+
+  const unarchiveProject = async (projectId) => {
+    setSaving(true);
+    try {
+      await supabase.from("projects").update({ status:"active" }).eq("id", projectId);
+      await syncPipeline();
+    } catch(e) { console.error(e); }
     setSaving(false);
   };
 
@@ -397,11 +449,37 @@ export default function App() {
     setSaving(false);
   };
 
+  const createAccessCode = async (e) => {
+    e.preventDefault();
+    if (!newCodeForm.code.trim() || !newCodeForm.user_name.trim()) return;
+    setSaving(true);
+    try {
+      await supabase.from("access_codes").insert([{
+        code: newCodeForm.code.trim().toLowerCase(),
+        user_name: newCodeForm.user_name.trim(),
+        role: newCodeForm.role,
+        is_active: true
+      }]);
+      setNewCodeForm({ code:"", user_name:"", role:"team" }); setShowNewCode(false);
+      await syncPipeline();
+    } catch(err) { console.error(err); }
+    setSaving(false);
+  };
+
+  const toggleAccessCode = async (id, currentStatus) => {
+    setSaving(true);
+    try {
+      await supabase.from("access_codes").update({ is_active: !currentStatus }).eq("id", id);
+      await syncPipeline();
+    } catch(err) { console.error(err); }
+    setSaving(false);
+  };
+
   const generateDailyBriefs = () => {
     setWaBriefs({
-      Héctor: "🔥 *Versiona Daily Brief · Héctor*\n• Terminar el 4to video para cierre de mes 🎬.\n• Modificar flyers promocionales.",
-      Arturo: "📚 *Versiona Daily Brief · Arturo*\n• Cerrar propuesta comercial cliente B 🚀.\n• Agendar sesión de contenido en locación.",
-      Diego: "🧠 *Versiona Daily Brief · Diego*\n• Validar código de la landing page.\n• Coordinar locación externa."
+      Héctor: "🔥 *Versiona Daily Brief · Héctor*\n• Terminar el 4to video para pauta de contenido 🎬.\n• Modificar flyers promocionales.",
+      Arturo: "📚 *Versiona Daily Brief · Arturo*\n• Cerrar propuesta de sesión en locación 🚀.\n• Agendar pauta estratégica semanal.",
+      Diego: "🧠 *Versiona Daily Brief · Diego*\n• Validar inyección del re-enrutador de marcas.\n• Coordinar mesa de control del viernes."
     });
   };
 
@@ -411,6 +489,7 @@ export default function App() {
   const adminProjects   = clients.filter(c => (c.type==="admin" || c.name.toLowerCase().includes("admin")) && c.dbStatus !== "archived");
   const regularProjects = clients.filter(c => !adminProjects.some(a=>a.id===c.id) && c.dbStatus !== "archived");
   const activeProjects  = regularProjects.filter(c => c.tasks && c.tasks.some(t => t.state !== "done" && t.state !== "archived"));
+  const allActiveProjectsList = clients.filter(c => c.dbStatus !== "archived");
   
   const sortedActive = sortProjects(activeProjects);
   const client       = clients.find(c=>c.id===activeClient) || sortedActive[0] || adminProjects[0];
@@ -434,14 +513,12 @@ export default function App() {
   const allBlock     = blockedAll.length;
   const allOver      = clients.reduce((acc, c) => acc + (c.tasks ? c.tasks.filter(t => { const d = deadlineInfo(t.deadline); return d && d.status === "due" && t.state !== "done" && t.state !== "archived"; }).length : 0), 0);
 
-  const navBtn = (id, label, accentColor) => ( <button className="nav-btn" key={id} onClick={()=>setView(id)} style={{ background:view===id?(accentColor||thm.accentBg):"transparent", color:view===id?(accentColor?"#080a0e":thm.accentText):thm.textSub }}>{label}</button> );
-
-  const totalActiveEquipo = clients.flatMap(c=>c.tasks ? c.tasks.filter(t=>t.state!=="done" && t.state!=="archived") : []).length || 1;
+  const rowProps = { teamMembers, activeProjectsList: allActiveProjectsList, onCycleState: cycleState, onCycleWho: cycleWho, onCyclePrio: cyclePrio, onCompleteTask: completeTask, onRestoreTask: restoreTask, onDeleteTask: deleteTask, onArchiveTask: archiveTask, onChangeTaskProject: changeTaskProject, onSetDl: setDl, editingDl, setEditingDl, isAdmin };
+  const totalActiveTasksGlobal = clients.flatMap(c=>c.tasks ? c.tasks.filter(t=>t.state!=="done" && t.state!=="archived") : []).length;
   const timeStr = now.toLocaleDateString("es-MX", { weekday:"short", day:"2-digit", month:"short" }) + " · " + now.toLocaleTimeString("es-MX", { hour:"2-digit", minute:"2-digit" }); 
   const inpStyle = { background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, fontSize:12, padding:"9px 12px", outline:"none" };
-  const rowProps = { teamMembers, onCycleState: cycleState, onCycleWho: cycleWho, onCyclePrio: cyclePrio, onCompleteTask: completeTask, onRestoreTask: restoreTask, onDeleteTask: deleteTask, onArchiveTask: archiveTask, onSetDl: setDl, editingDl, setEditingDl, isAdmin };
-  
-  // ── PANTALLA LOGIN SEMILLA ──
+
+  // ── SCREEN LOGIN ──
   if (!session.loggedIn) {
     const currentDate = now.toLocaleDateString("es-MX", { weekday:"long", day:"2-digit", month:"long", year:"numeric" });
     return (
@@ -464,6 +541,8 @@ export default function App() {
     );
   }
 
+  if (!loaded) return <div style={{ height:"100vh", background:thm.bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16, fontFamily:font }}><div className="font-serif" style={{ fontSize:22, color:thm.text }}>VERSIONA<span style={{ color:"#F47920" }}>O</span><span style={{ color:"#29ABE2", fontStyle:"italic" }}>S</span></div><div className="pulse" style={{ fontSize:11, color:thm.textMuted, letterSpacing:2 }}>SINCRONIZANDO VECTORES</div></div>;
+
   return (
     <div style={{ minHeight:"100vh", background:thm.bg, color:thm.text, display:"flex", flexDirection:"column", fontFamily:font }}>
       {/* ── HEADER MASTER NAV ── */}
@@ -476,7 +555,7 @@ export default function App() {
           {isAdmin && navBtn("servicios", "📋 Servicios")}
           {navBtn("blocked", `Pausas (${allBlock})`)}
           {navBtn("feedback", "⚙ Soporte")}
-          {navBtn("completadas", "✓ Análisis Semanal")}
+          {isAdmin && navBtn("completadas", "✓ Análisis Semanal")}
           {isAdmin && navBtn("admin-utils", "Configuraciones",  "#F47920")}
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:12, marginLeft:"auto", flexShrink:0 }}>
@@ -484,7 +563,7 @@ export default function App() {
             <div className="live-dot" />
             <div style={{ textAlign:"right" }}>
               <div style={{ fontSize:12, fontWeight:700, color: session.user === "Diego" ? "#F47920" : "#29ABE2" }}>{session.user} <span style={{ fontSize:9, color:thm.textMuted, fontWeight:400, background:thm.surfaceTop, padding:"2px 6px", borderRadius:4 }}>{session.role}</span></div>
-              <div style={{ fontSize:9, color:thm.textMuted }}>{saving ? <span style={{ color:"#facc15" }}>guardando...</span> : <span>{timeStr}</span>}</div>
+              <div style={{ fontSize:9, color:thm.textMuted }}>{timeStr}</div>
             </div>
           </div>
           <button onClick={handleLogout} style={{ background:"none", border:"none", color:"#f87171", cursor:"pointer", fontSize:11, fontWeight:700 }}>Salir →</button>
@@ -511,7 +590,7 @@ export default function App() {
                 <div style={{ marginBottom: 8 }}>
                   <div style={{ padding:"16px 18px 6px", fontSize:9, color:thm.textMuted, letterSpacing:2, textTransform:"uppercase", fontWeight:700 }}>⚙️ Operación Interna</div>
                   {adminProjects.map(c => (
-                    <button key={c.id} onClick={() => { setActiveClient(c.id); setShowDone(false); }} style={{ width:"100%", textAlign:"left", padding:"11px 18px", background:c.id===client?.id?thm.surfaceHigh:"transparent", border:"none", borderLeft:c.id===client?.id?`3px solid #c49a2a`:"3px solid transparent", cursor:"pointer", color:c.id===client?.id?thm.text:thm.textMuted, fontSize:12 }}>⚙️ {c.name}</button>
+                    <button key={c.id} onClick={() => { setActiveClient(c.id); setShowDone(false); }} style={{ width:"100%", textAlign:"left", padding:"11px 18px", background:c.id===activeClient?thm.surfaceHigh:"transparent", border:"none", borderLeft:c.id===activeClient?`3px solid #c49a2a`:"3px solid transparent", cursor:"pointer", color:c.id===activeClient?thm.text:thm.textMuted, fontSize:12 }}>⚙️ {c.name}</button>
                   ))}
                 </div>
               )}
@@ -522,7 +601,7 @@ export default function App() {
                 const bl = c.tasks ? c.tasks.filter(t=>t.state==="blocked").length : 0; 
                 const pd = c.tasks ? c.tasks.filter(t=>t.state!=="done" && t.state!=="archived").length : 0;
                 return (
-                  <button key={c.id} onClick={() => { setActiveClient(c.id); setShowDone(false); }} style={{ width:"100%", textAlign:"left", padding:"11px 18px", background:c.id===client?.id?thm.surfaceHigh:"transparent", border:"none", borderLeft:c.id===client?.id?`3px solid ${STA_CLR[c.status]}`:"3px solid transparent", cursor:"pointer", color:c.id===client?.id?thm.text:thm.textSub, fontSize:12 }}>
+                  <button key={c.id} onClick={() => { setActiveClient(c.id); setShowDone(false); }} style={{ width:"100%", textAlign:"left", padding:"11px 18px", background:c.id===activeClient?thm.surfaceHigh:"transparent", border:"none", borderLeft:c.id===activeClient?`3px solid ${STA_CLR[c.status]}`:"3px solid transparent", cursor:"pointer", color:c.id===activeClient?thm.text:thm.textSub, fontSize:12 }}>
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:6, marginBottom:4 }}>
                       <div style={{ display:"flex", alignItems:"center", gap:7, overflow:"hidden" }}><div style={{ width:7, height:7, borderRadius:"50%", background:STA_CLR[c.status], flexShrink:0 }}/><span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.name}</span></div>
                       <div style={{ display:"flex", gap:4, flexShrink:0 }}>{bl>0 && <span style={{ fontSize:8, color:"#f87171", fontWeight:700 }}>⊘{bl}</span>} {pd>0 && <span style={{ fontSize:8, color:thm.textMuted }}>{pd}</span>}</div>
@@ -583,6 +662,9 @@ export default function App() {
                       <select value={newTask.whoId || ""} onChange={e=>setNewTask(p=>({...p,whoId:e.target.value}))} style={{ ...inpStyle, cursor:"pointer" }}>
                         {teamMembers.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
                       </select>
+                      <select value={newTask.category} onChange={e=>setNewTask(p=>({...p, category: e.target.value}))} style={{ ...inpStyle, cursor:"pointer" }}>
+                        {TASK_CATS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                      </select>
                       <button onClick={()=>addTask()} style={{ background:thm.accentBg, color:thm.accentText, border:"none", borderRadius:8, padding:"0 20px", fontWeight:700, cursor:"pointer", fontSize:12 }}>Agregar</button>
                       <button onClick={()=>setShowForm(false)} style={{ background:"transparent", color:thm.textMuted, border:"none", cursor:"pointer", padding:"0 10px", fontWeight:600, fontSize:12 }}>✕</button>
                     </div>
@@ -595,18 +677,18 @@ export default function App() {
           </>
         )}
 
-        {/* ══ VIEW: CATALOGO DE SERVICIOS POR TIPO ══ */}
+        {/* ══ VIEW: CATALOGO DE SERVICIOS POR ENFOCADOS POR TIPO ══ */}
         {view === "servicios" && isAdmin && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg, maxWidth:850, margin:"0 auto", width:"100%" }}>
             <h2 className="font-serif" style={{ fontSize:30, marginBottom:6 }}>📋 Servicios</h2>
-            <p style={{ fontSize:13, color:thm.textSub, marginBottom:28 }}>Mapeo global de entregables activos divididos por tipo de servicio.</p>
-            {CREATIVE_SERVICES_CATALOG.every(srv => clients.flatMap(c => (c.tasks || []).filter(t => t.service_id === srv.id && t.state !== "done").map(t => ({ ...t, cname: c.name }))).length === 0) ? (
-               <div style={{ textAlign:"center", padding:48, color:thm.textMuted, background:thm.surface, borderRadius:14, border:`1px dashed ${thm.border}` }}>No hay servicios creativos mapeados en el flujo activo.</div>
+            <p style={{ fontSize:13, color:thm.textSub, marginBottom:28 }}>Mapeo de entregables y sesiones de trabajo profundo activos agrupados por entregable.</p>
+            {CREATIVE_SERVICES_CATALOG.every(srv => clients.flatMap(c => (c.tasks || []).filter(t => (t.service_id === srv.id || (srv.id === "srv_reel" && t.category === "📚")) && t.state !== "done")).length === 0) ? (
+               <div style={{ textAlign:"center", padding:48, color:thm.textMuted, background:thm.surface, borderRadius:14, border:`1px dashed ${thm.border}` }}>No hay entregables o pautas activas mapeadas.</div>
             ) : (
                <div style={{ display:"flex", flexDirection:"column", gap:24 }}>
                   {CREATIVE_SERVICES_CATALOG.map(srv => {
                      const tasksForService = clients.flatMap(c => 
-                        (c.tasks || []).filter(t => t.service_id === srv.id && t.state !== "done" && t.state !== "archived").map(t => ({ ...t, cname: c.name }))
+                        (c.tasks || []).filter(t => (t.service_id === srv.id || (srv.id === "srv_photo" && t.category === "📚")) && t.state !== "done" && t.state !== "archived").map(t => ({ ...t, cname: c.name }))
                      );
                      if (tasksForService.length === 0) return null;
                      return (
@@ -620,10 +702,10 @@ export default function App() {
                                  const member = teamMembers.find(m => m.id === sTask.assigned_to);
                                  return (
                                     <div key={sTask.id} style={{ display:"flex", alignItems:"flex-start", gap:12, paddingBottom:12, borderBottom:`1px dashed ${thm.borderLight}` }}>
-                                       <span style={{ fontSize:18 }}>{srv.type === "video" ? "🎬" : srv.type === "design" ? "🎨" : "📸"}</span>
+                                       <span style={{ fontSize:18 }}>{srv.type === "video" ? "🎬" : srv.type === "production" ? "📸" : "🎨"}</span>
                                        <div style={{ flex:1 }}>
                                           <div style={{ fontSize:13, fontWeight:700, color:thm.text, marginBottom:4 }}>{sTask.text}</div>
-                                          <div style={{ fontSize:12, color:thm.textSub }}>📁 Proyecto: {sTask.cname}</div>
+                                          <div style={{ fontSize:12, color:thm.textSub }}>📁 Proyecto: {sTask.cname} · Bloque: {sTask.category}</div>
                                        </div>
                                        <div style={{ fontSize:10, color:thm.textMuted, background:thm.inputBg, padding:"4px 10px", borderRadius:20 }}>Resp: {member?.name || "Sin asignar"}</div>
                                     </div>
@@ -638,15 +720,15 @@ export default function App() {
           </div>
         )}
 
-        {/* ══ VIEW: FEEDBACK LOOP / SOPORTE (BUZÓN DE CONTROL) ══ */}
+        {/* ══ VIEW: FEEDBACK LOOP / SOPORTE INTELLIGENT BUZÓN ══ */}
         {view === "feedback" && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg, maxWidth:isAdmin ? 800 : 600, margin:"0 auto", width:"100%" }}>
             {isAdmin ? (
                <>
-                  <h2 className="font-serif" style={{ fontSize:30, marginBottom:6, color:"#F47920" }}>⚙️ Buzón de Soporte y Fricción</h2>
-                  <p style={{ fontSize:13, color:thm.textSub, marginBottom:28 }}>Tickets de soporte y optimización reportados por el equipo.</p>
+                  <h2 className="font-serif" style={{ fontSize:30, marginBottom:6, color:"#F47920" }}>⚙️ Buzón de Control de Fricción</h2>
+                  <p style={{ fontSize:13, color:thm.textSub, marginBottom:28 }}>Mesa unificada de tickets de optimización y alertas automáticas de seguridad.</p>
                   {(!feedbackItems || feedbackItems.length === 0) ? (
-                     <div style={{ textAlign:"center", padding:48, color:thm.textMuted, background:thm.surface, borderRadius:14, border:`1px dashed ${thm.border}` }}>El equipo no ha reportado tickets recientemente.</div>
+                     <div style={{ textAlign:"center", padding:48, color:thm.textMuted, background:thm.surface, borderRadius:14, border:`1px dashed ${thm.border}` }}>Sin notas de fricción o tickets de soporte pendientes. 🙌</div>
                   ) : (
                      <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
                         {feedbackItems.map(fb => {
@@ -656,7 +738,7 @@ export default function App() {
                           return (
                              <div key={fb.id} style={{ background:thm.surface, padding:20, borderRadius:12, border:`1px solid ${thm.border}`, borderLeft:`4px solid ${fbColor}` }}>
                                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
-                                   <span style={{ fontSize:12, fontWeight:700, color:fbColor }}>Reportado por: {fb.user_name || "Equipo"}</span>
+                                   <span style={{ fontSize:12, fontWeight:700, color:fbColor }}>Remitente: {fb.user_name || "Mesa de Control"}</span>
                                    <span style={{ fontSize:10, color:thm.textMuted }}>{fb.created_at ? new Date(fb.created_at).toLocaleDateString("es-MX") : ""}</span>
                                 </div>
                                 <div style={{ fontSize:13, color:thm.text, lineHeight:1.6 }}>{fb.message}</div>
@@ -668,18 +750,13 @@ export default function App() {
                </>
             ) : (
                <>
-                  <h2 className="font-serif" style={{ fontSize:30, marginBottom:6 }}>⚙️ Buzón de Soporte</h2>
-                  <p style={{ fontSize:13, color:thm.textSub, marginBottom:28, lineHeight:1.6 }}>Levanta un ticket al administrador si tienes problemas con la plataforma, dudas con un cliente o fricción en la operación.</p>
+                  <h2 className="font-serif" style={{ fontSize:30, marginBottom:6 }}>⚙️ Reportar Fricción / Soporte</h2>
+                  <p style={{ fontSize:13, color:thm.textSub, marginBottom:28, lineHeight:1.6 }}>¿Detectaste cuellos de botella o lentitud en el flujo? Descríbelo aquí. Llegará clasificado automáticamente a la mesa de control del Admin.</p>
                   <form onSubmit={handleFeedbackSubmit}>
-                     <select value={feedbackType} onChange={e=>setFeedbackType(e.target.value)} style={{...inpStyle, width:"100%", marginBottom:10}}>
-                        <option value="Operación">Fricción en Operación (Lentitud, procesos)</option>
-                        <option value="Soporte Técnico">Soporte Técnico (Falla en el Dashboard)</option>
-                        <option value="Cliente">Duda con Cliente / Requerimiento</option>
-                     </select>
-                     <textarea value={feedbackMsg} onChange={e => setFeedbackMsg(e.target.value)} placeholder="Ej: No me deja cargar la tarea del cliente X..." style={{ width: "100%", minHeight: 140, background: thm.surface, border: `1px solid ${thm.border}`, borderRadius: 12, color: thm.text, fontSize: 13, padding: 20, outline: "none", lineHeight: 1.6, resize: "none", marginBottom: 16 }} />
-                     <button type="submit" disabled={saving || !feedbackMsg.trim()} style={{ background: thm.text, color: thm.bg, border: "none", borderRadius: 8, padding: "12px 24px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Enviar Ticket al Admin</button>
+                     <textarea value={feedbackMsg} onChange={e => setFeedbackMsg(e.target.value)} placeholder="Ej: No me deja archivar la tarea X, o los guiones van muy lentos esta semana..." style={{ width: "100%", minHeight: 140, background: thm.surface, border: `1px solid ${thm.border}`, borderRadius: 12, color: thm.text, fontSize: 13, padding: 20, outline: "none", lineHeight: 1.6, resize: "none", marginBottom: 16 }} />
+                     <button type="submit" disabled={saving || !feedbackMsg.trim()} style={{ background: thm.text, color: thm.bg, border: "none", borderRadius: 8, padding: "12px 24px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Enviar Nota</button>
                   </form>
-                  {feedbackSuccess && <div className="fade-up" style={{ marginTop: 16, background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.2)", color: "#4ade80", padding: "12px 16px", borderRadius: 8, fontSize: 12, fontWeight: 600 }}>✓ Ticket enviado con éxito al buzón del Administrador.</div>}
+                  {feedbackSuccess && <div className="fade-up" style={{ marginTop: 16, background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.2)", color: "#4ade80", padding: "12px 16px", borderRadius: 8, fontSize: 12, fontWeight: 600 }}>✓ Nota procesada de forma segura por la matriz.</div>}
                </>
             )}
           </div>
@@ -688,29 +765,43 @@ export default function App() {
         {/* ══ VIEW: PAUSAS ACTIVAS ══ */}
         {view === "blocked" && (
           <div style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg, display:"flex", flexDirection:"column", gap:8 }}>
-            <h2 className="font-serif" style={{ fontSize:28, color:"#f87171", margin:"0 0 12px 0" }}>⊘ Contenidos y Proyectos Pausados</h2>
+            <h2 className="font-serif" style={{ fontSize:28, color:"#f87171", margin:"0 0 12px 0" }}>⊘ Contenidos Pausados</h2>
             {blockedAll.length === 0 ? <div style={{ color:thm.textMuted, fontSize:13 }}>Sin contenidos bloqueados en este periodo. 🙌</div> : blockedAll.map(t => (
               <div key={t.id} style={{ padding:16, background:thm.surface, borderRadius:12, border:`1px solid ${thm.border}`, borderLeft:"4px solid #f87171", fontSize:13 }}>
                 <div style={{ fontWeight:600, color:thm.text }}>{t.text}</div>
                 <div style={{ display:"flex", gap:8, fontSize:11, color:thm.textMuted, marginTop:6 }}>
                   <span>📁 Proyecto: {t.cname}</span>
-                  {t.blocked_reason && <span style={{ color:"#facc15", fontStyle:"italic" }}>Motivo: "{t.blocked_reason}"</span>}
+                  {t.blocked_reason && <span style={{ color:"#facc15" }}>Motivo: "{t.blocked_reason}"</span>}
                 </div>
               </div>
             ))}
           </div>
         )}
 
-        {/* ══ VIEW: TEAM / EQUIPO (GRAFICA PURA MATRIX) ══ */}
+        {/* ══ VIEW: TEAM / EQUIPO SEGMENTADO (GRAFICA COLOR MATRIX PURA) ══ */}
         {(view === "team" || view === "equipo") && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"22px", background:thm.bg }}>
             
-            {/* ── GRAFICA DE PASTEL MATRIX PURA SIN TÍTULOS ── */}
-            <div style={{ display: "flex", justifyContent: "center", marginBottom: 32, padding: "10px" }}>
-               <div style={{ width: 140, height: 140, borderRadius: "50%", background: teamMembers.map(m => { const mActive = clients.flatMap(c=>c.tasks ? c.tasks.filter(t=>t.state!=="done" && t.state!=="archived" && toWho(t.who || "") === toWho(m.name)) : []).length; const pct = (mActive / (clients.flatMap(c=>c.tasks ? c.tasks.filter(t=>t.state!=="done" && t.state!=="archived") : []).length || 1)) * 100; if (pct === 0) return null; let currentDeg = 0; const color = getMemberColor(m.name); const start = currentDeg; currentDeg += pct; return `${color} ${start}% ${currentDeg}%`; }).filter(Boolean).join(", ") ? `conic-gradient(${teamMembers.map(m => { const mActive = clients.flatMap(c=>c.tasks ? c.tasks.filter(t=>t.state!=="done" && t.state!=="archived" && toWho(t.who || "") === toWho(m.name)) : []).length; const pct = (mActive / (clients.flatMap(c=>c.tasks ? c.tasks.filter(t=>t.state!=="done" && t.state!=="archived") : []).length || 1)) * 100; if (pct === 0) return null; let currentDeg = 0; const color = getMemberColor(m.name); const start = currentDeg; currentDeg += pct; return `${color} ${start}% ${currentDeg}%`; }).filter(Boolean).join(", ")})` : thm.border, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 6px 24px rgba(0,0,0,0.5)" }}>
-                  <div style={{ width: 85, height: 85, background: thm.surface, borderRadius: "50%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
-                     <span style={{ fontSize:22, fontWeight:700, color:"#eef0f3" }}>{clients.flatMap(c=>c.tasks ? c.tasks.filter(t=>t.state!=="done" && t.state!=="archived") : []).length}</span>
-                     <span style={{ fontSize:9, color:thm.textMuted, letterSpacing:1 }}>ACTIVAS</span>
+            {/* ── GRÁFICA DE PASTEL INTERACTIVA SEGMENTADA POR COLOR (SIN TEXTOS MOLESTOS) ── */}
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: 36 }}>
+               <div style={{
+                 width: 142, height: 142, borderRadius: "50%", 
+                 background: totalActiveTasksGlobal === 0 ? "#4ade80" : `conic-gradient(${
+                   teamMembers.map((m, idx) => {
+                     const cnt = clients.flatMap(c => (c.tasks || []).filter(t => t.assigned_to === m.id && t.state !== "done" && t.state !== "archived")).length;
+                     return { color: getMemberColor(m.name), weight: (cnt / (totalActiveTasksGlobal || 1)) * 100 };
+                   }).reduce((acc, curr, i, arr) => {
+                     if (curr.weight === 0) return acc;
+                     const start = acc.currSum; acc.currSum += curr.weight;
+                     acc.strings.push(`${curr.color} ${start}% ${acc.currSum}%`);
+                     return acc;
+                   }, { strings: [], currSum: 0 }).strings.join(", ")
+                 })`,
+                 display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 32px rgba(0,0,0,0.6)", transition: "all 0.4s ease"
+               }}>
+                  <div style={{ width: 88, height: 88, background: thm.surface, borderRadius: "50%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
+                     <span style={{ fontSize:24, fontWeight:700, color: totalActiveTasksGlobal === 0 ? "#4ade80" : "#eef0f3" }}>{totalActiveTasksGlobal}</span>
+                     <span style={{ fontSize:8, color:thm.textMuted, letterSpacing:1.5, fontWeight:700 }}>{totalActiveTasksGlobal === 0 ? "LIBRE" : "ACTIVAS"}</span>
                   </div>
                </div>
             </div>
@@ -726,7 +817,7 @@ export default function App() {
                       <div><div style={{ fontSize:15, fontWeight:700, color: mColor }}>{m.name}</div><div style={{ fontSize:9, color:thm.textMuted, marginTop:4 }}>{n} activas · {done.length} listas</div></div>
                       <div style={{ fontSize:26, fontWeight:700, color:ov?"#f87171":"#4ade80", lineHeight:1 }}>{n}</div>
                     </div>
-                    <div style={{ maxHeight:400, overflowY:"auto" }}>
+                    <div style={{ maxHeight:350, overflowY:"auto" }}>
                       {active.map(t => (
                         <div key={t.id} style={{ padding:"11px 16px", borderBottom:`1px solid ${thm.borderLight}`, borderLeft:`3px solid ${t.state==="blocked"?"#f87171":"#facc15"}` }}>
                           <div style={{ fontSize:11, color:thm.text, lineHeight:1.4 }}>{t.text}</div>
@@ -740,15 +831,14 @@ export default function App() {
           </div>
         )}
 
-        {/* ══ VIEW: COMPLETADAS (AUDITORÍA SEMANAL CON BUFFER) ══ */}
-        {view === "completadas" && (
+        {/* ══ VIEW: COMPLETADAS / ANÁLISIS SEMANAL (EXCLUSIVO ADMIN) ══ */}
+        {view === "completadas" && isAdmin && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg, width:"100%" }}>
             <h2 className="font-serif" style={{ fontSize:32, margin:"0 0 4px 0" }}>📊 Análisis Semanal</h2>
-            <p style={{ fontSize:13, color:thm.textSub, marginBottom:24 }}>Estatus y rendimiento global de entregas del periodo activo.</p>
+            <p style={{ fontSize:13, color:thm.textSub, marginBottom:24 }}>Estatus estructural y métricas de pauta correspondientes al cierre semanal.</p>
 
             <div style={{ display:"flex", flexDirection:"column", gap:24 }}>
               <div style={{ background:thm.surface, borderRadius:14, padding:24, border:`1px solid ${thm.border}` }}>
-                <div style={{ fontSize:10, color:thm.textMuted, letterSpacing:1.5, textTransform:"uppercase", marginBottom:12, fontWeight:700 }}>Métricas Consolidadas en Tiempo Real</div>
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(160px, 1fr))", gap:12 }}>
                   <div className="kpi-card kpi-blue"><div className="font-serif" style={{ fontSize:32, color:thm.text, lineHeight:1 }}>{clients.filter(c => c.dbStatus !== "archived").length}</div><div style={{ fontSize:9, color:thm.textMuted, fontWeight:700, letterSpacing:1.2, marginTop:8, textTransform:"uppercase" }}>CUENTAS ACTIVAS</div></div>
                   <div className="kpi-card kpi-green"><div className="font-serif" style={{ fontSize:32, color:thm.text, lineHeight:1 }}>{allDone.length}</div><div style={{ fontSize:9, color:thm.textMuted, fontWeight:700, letterSpacing:1.2, marginTop:8, textTransform:"uppercase" }}>ENTREGADAS</div></div>
@@ -762,50 +852,47 @@ export default function App() {
               {/* SEMÁFORO DE AUDITORÍA */}
               <div style={{ background:thm.surface, borderRadius:14, padding:24, border:`1px solid ${thm.border}` }}>
                 <div style={{ fontSize:10, color:thm.textMuted, letterSpacing:1.5, textTransform:"uppercase", marginBottom:16, fontWeight:700 }}>Semáforo de Intención Semanal</div>
-                <div className="semaforo-win" style={{ marginBottom:12 }}><span style={{ fontSize:24 }}>🏆</span><div style={{ flex:1 }}><div style={{ fontSize:11, color:"#4ade80", fontWeight:700 }}>LOGRO DE IMPACTO SEMANAL</div><textarea rows={2} placeholder="Ej: Logramos liberar la pauta de contenidos de MX Travel 2 días antes y el cliente aprobó la línea de diseño sin cambios." style={{ width:"100%", background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, padding:10, marginTop:6 }}/></div></div>
-                <div className="semaforo-warn" style={{ marginBottom:12 }}><span style={{ fontSize:24 }}>🚀</span><div style={{ flex:1 }}><div style={{ fontSize:11, color:"#facc15", fontWeight:700 }}>AVANCE DESTACADO DE CONTENIDO</div><textarea rows={2} placeholder="Ej: Destrabamos la producción de reels para La Chula, las grabaciones ya están agendadas." style={{ width:"100%", background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, padding:10, marginTop:6 }}/></div></div>
-                <div className="semaforo-risk"><span style={{ fontSize:24 }}>⚠️</span><div style={{ flex:1 }}><div style={{ fontSize:11, color:"#f87171", fontWeight:700 }}>RIESGO / CUELLO DE BOTELLA CRÍTICO</div><textarea rows={2} placeholder="Ej: El cliente de pauta no ha enviado los accesos de Meta Business Manager, pauta detenida 3 días." style={{ width:"100%", background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, padding:10, marginTop:6 }}/></div></div>
+                <div className="semaforo-win" style={{ marginBottom:12 }}><span style={{ fontSize:24 }}>🏆</span><div style={{ flex:1 }}><div style={{ fontSize:11, color:"#4ade80", fontWeight:700 }}>LOGRO DE IMPACTO SEMANAL</div><textarea rows={2} placeholder="Ej: Logramos liberar la campaña completa de Casa de la guitarra 2 días antes." style={{ width:"100%", background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, padding:10, marginTop:6 }}/></div></div>
+                <div className="semaforo-warn" style={{ marginBottom:12 }}><span style={{ fontSize:24 }}>🚀</span><div style={{ flex:1 }}><div style={{ fontSize:11, color:"#facc15", fontWeight:700 }}>AVANCE DESTACADO DE CONTENIDO</div><textarea rows={2} placeholder="Ej: Destrabamos las pautas y guiones para Renace con Cariño, ya listos para rodaje." style={{ width:"100%", background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, padding:10, marginTop:6 }}/></div></div>
+                <div className="semaforo-risk"><span style={{ fontSize:24 }}>⚠️</span><div style={{ flex:1 }}><div style={{ fontSize:11, color:"#f87171", fontWeight:700 }}>RIESGO / CUELLO DE BOTELLA CRÍTICO</div><textarea rows={2} placeholder="Ej: Falta confirmación de accesos de Meta Business Manager por parte del cliente." style={{ width:"100%", background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, padding:10, marginTop:6 }}/></div></div>
               </div>
 
-              {/* WHATSAPP BRIEFING LOOP */}
-              {isAdmin && (
-                <div style={{ background:thm.surface, borderRadius:14, padding:24, border:`1px solid ${thm.border}` }}>
-                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
-                    <div>
-                      <div style={{ fontSize:14, fontWeight:700 }}>WhatsApp Daily Brief Loop</div>
-                      <div style={{ fontSize:11, color:thm.textMuted }}>Genera la matriz de comunicación limpia para pauta y equipo.</div>
-                    </div>
-                    <button onClick={generateDailyBriefs} style={{ background:thm.text, color:thm.bg, border:"none", padding:"8px 16px", borderRadius:6, fontWeight:700, cursor:"pointer", fontSize:11 }}>Generar Briefings</button>
+              {/* WHATSAPP BRIEFING GENERATOR */}
+              <div style={{ background:thm.surface, borderRadius:14, padding:24, border:`1px solid ${thm.border}` }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+                  <div>
+                    <div style={{ fontSize:14, fontWeight:700 }}>WhatsApp Daily Brief Loop Matrix</div>
+                    <div style={{ fontSize:11, color:thm.textMuted }}>Genera bloques limpios listos para copiar y distribuir en chats de trabajo.</div>
                   </div>
-                  {waBriefs && (
-                    <div className="fade-up" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))", gap:12 }}>
-                      {Object.entries(waBriefs).map(([name, msg]) => (
-                        <div key={name} style={{ background:thm.inputBg, padding:16, borderRadius:8, border: `1px solid ${thm.border}` }}>
-                          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:10 }}>
-                            <span style={{ fontSize:12, fontWeight:700, color:getMemberColor(name) }}>{name}</span>
-                            <button onClick={() => navigator.clipboard.writeText(msg)} style={{ background:"none", border:"none", color:"#4ade80", fontSize:10, cursor:"pointer", fontWeight:700 }}>Copiar</button>
-                          </div>
-                          <pre style={{ margin:0, fontSize:11, whiteSpace:"pre-wrap", color:thm.textSub, lineHeight:1.5, fontFamily:"inherit" }}>{msg}</pre>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <button onClick={generateDailyBriefs} style={{ background:thm.text, color:thm.bg, border:"none", padding:"8px 16px", borderRadius:6, fontWeight:700, cursor:"pointer", fontSize:11 }}>Generar Briefings</button>
                 </div>
-              )}
+                {waBriefs && (
+                  <div className="fade-up" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))", gap:12 }}>
+                    {Object.entries(waBriefs).map(([name, msg]) => (
+                      <div key={name} style={{ background:thm.inputBg, padding:16, borderRadius:8, border: `1px solid ${thm.border}` }}>
+                        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:10 }}>
+                          <span style={{ fontSize:12, fontWeight:700, color:getMemberColor(name) }}>{name}</span>
+                          <button onClick={() => { navigator.clipboard.writeText(msg); alert(`Briefing de ${name} copiado.`); }} style={{ background:"none", border:"none", color:"#4ade80", fontSize:10, cursor:"pointer", fontWeight:700 }}>Copiar</button>
+                        </div>
+                        <pre style={{ margin:0, fontSize:11, whiteSpace:"pre-wrap", color:thm.textSub, lineHeight:1.5, fontFamily:"inherit" }}>{msg}</pre>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-              {/* BUFFER BUFFER DE ACTIVIDADES ARCHIVADAS (EXCLUSIVO ADMIN) */}
-              {isAdmin && getArchivedTasks().length > 0 && (
-                <div style={{ background:thm.surface, borderRadius:14, padding:24, border:`1px solid ${thm.border}`, marginTop:12 }}>
-                  <div style={{ fontSize:11, color:thm.textMuted, fontWeight:700, letterSpacing:1.5, marginBottom:12, textTransform:"uppercase" }}>📁 Historial de Actividades Archivadas (Mesa de Control)</div>
+              {/* BUFFER REVISIÓN HISTÓRICA DE ACTIVIDADES ARCHIVADAS */}
+              {getArchivedTasks().length > 0 && (
+                <div style={{ background:thm.surface, borderRadius:14, padding:24, border:`1px solid ${thm.border}` }}>
+                  <div style={{ fontSize:11, color:thm.textMuted, fontWeight:700, letterSpacing:1.5, marginBottom:12, textTransform:"uppercase" }}>📁 Buffer de Actividades Archivadas de la Agencia</div>
                   <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                     {getArchivedTasks().map(t => (
                       <div key={t.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", background:thm.inputBg, borderRadius:10, border:`1px solid ${thm.border}`, opacity:0.6 }}>
-                        <span style={{ fontSize:12, color:thm.textMuted }}>📁</span>
                         <div style={{ flex:1 }}>
                           <div style={{ fontSize:13, color:thm.textSub }}>{t.text}</div>
-                          <div style={{ fontSize:10, color:thm.textMuted, marginTop:2 }}>Proyecto: {t.cname}</div>
+                          <div style={{ fontSize:10, color:thm.textMuted, marginTop:2 }}>Marca Origen: {t.cname}</div>
                         </div>
-                        <button className="btn-action" onClick={()=>restoreTask(t.id)} style={{ background:"none", border:`1px solid ${thm.border}`, color:thm.textSub, padding:"3px 10px", borderRadius:6, fontSize:10, cursor:"pointer" }}>Reabrir ↺</button>
+                        <button className="btn-action" onClick={()=>restoreTask(t.id)} style={{ background:"none", border:`1px solid ${thm.border}`, color:thm.textSub, padding:"4px 12px", borderRadius:6, fontSize:10, cursor:"pointer" }}>Restaurar Flujo ↺</button>
                       </div>
                     ))}
                   </div>
@@ -833,42 +920,102 @@ export default function App() {
           </div>
         )}
 
-        {/* ══ VIEW: CONFIGURACIONES (ADMIN UTILS COMPLETOS) ══ */}
+        {/* ══ VIEW: CONFIGURACIONES (MÓDULOS ADMIN CONTROL PANELS) ══ */}
         {view === "admin-utils" && isAdmin && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg }}>
             <h2 className="font-serif" style={{ margin:"0 0 8px 0", fontSize:30 }}>⚙ Configuración del Flujo Matrix</h2>
-            <p style={{ fontSize:13, color:thm.textSub, marginBottom:28 }}>Panel administrativo central para inyección de recursos e integrantes.</p>
+            <p style={{ fontSize:13, color:thm.textSub, marginBottom:28 }}>Panel maestro para el control de marcas, integrantes, contraseñas de acceso y auditoría en tiempo real.</p>
 
             {/* INTEGRANTES */}
             <div style={{ background:thm.surface, borderRadius:14, border:`1px solid ${thm.border}`, marginBottom:24, padding:20 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}><div style={{ fontSize:14, fontWeight:700 }}>1. Gestión de Integrantes del Equipo</div><button onClick={() => setShowNewMember(!showNewMember)} style={{ padding:"5px 12px", background:thm.surfaceTop, border:`1px solid ${thm.border}`, borderRadius:6, color:thm.text, fontSize:11, cursor:"pointer" }}>{showNewMember?"Cerrar":"+ Integrante"}</button></div>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}><div style={{ fontSize:14, fontWeight:700 }}>1. Integrantes del Equipo</div><button onClick={() => setShowNewMember(!showNewMember)} style={{ padding:"5px 12px", background:thm.surfaceTop, border:`1px solid ${thm.border}`, borderRadius:6, color:thm.text, fontSize:11, cursor:"pointer" }}>{showNewMember?"Cerrar":"+ Integrante"}</button></div>
               {showNewMember && (
-                <div style={{ display:"flex", gap:10, background:thm.inputBg, padding:12, borderRadius:8, marginBottom:12 }}><input value={newMemberName} onChange={e=>setNewMemberName(e.target.value)} placeholder="Nombre del integrante..." style={{...inpStyle, flex:1}}/><button onClick={addTeamMember} style={{ background:"#4ade80", color:thm.bg, border:"none", borderRadius:6, padding:"0 16px", fontWeight:700, cursor:"pointer" }}>Guardar</button></div>
+                <div style={{ display:"flex", gap:10, background:thm.inputBg, padding:12, borderRadius:8, marginBottom:12 }}><input value={newMemberName} onChange={e=>setNewMemberName(e.target.value)} placeholder="Nombre..." style={{...inpStyle, flex:1}}/><button onClick={addTeamMember} style={{ background:"#4ade80", color:thm.bg, border:"none", borderRadius:6, padding:"0 16px", fontWeight:700, cursor:"pointer" }}>Guardar</button></div>
               )}
               {teamMembers.map(m => (
                 <div key={m.id} style={{ display:"flex", gap:10, alignItems:"center", marginBottom:6 }}><input defaultValue={m.name} onBlur={e => editTeamMember(m.id, e.target.value)} style={{...inpStyle, flex:1}}/><button onClick={() => deleteTeamMember(m.id)} style={{ background:"none", border:`1px solid ${thm.deleteBorder}`, color:thm.deleteText, borderRadius:6, padding:"4px 12px", cursor:"pointer", fontSize:11 }}>Eliminar</button></div>
               ))}
             </div>
 
-            {/* PROYECTOS CREAR/ARCHIVAR/ELIMINAR */}
-            <div style={{ background:thm.surface, borderRadius:14, border:`1px solid ${thm.border}`, padding:20 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}><div style={{ fontSize:14, fontWeight:700 }}>2. Control y Registro de Proyectos</div><button onClick={() => setShowNewProject(!showNewProject)} style={{ padding:"5px 12px", background:thm.accentBg, color:thm.accentText, border:"none", borderRadius:6, fontSize:11, fontWeight:700, cursor:"pointer" }}>{showNewProject?"Cancelar":"+ Nuevo Proyecto"}</button></div>
+            {/* CONTROL DE PROYECTOS (CON MESA FILTRABLE DE ARCHIVADOS) */}
+            <div style={{ background:thm.surface, borderRadius:14, border:`1px solid ${thm.border}`, marginBottom:24, padding:20 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+                 <div style={{ display: "flex", gap:12, alignItems:"center" }}>
+                    <div style={{ fontSize:14, fontWeight:700 }}>2. Registro de Marcas y Cuentas</div>
+                    <div style={{ display:"flex", gap:4, background:thm.inputBg, padding:2, borderRadius:6 }}>
+                       <button onClick={() => setProjectFilterTab("active")} style={{ fontSize:10, padding:"4px 8px", background:projectFilterTab==="active"?thm.surfaceHigh:"transparent", color:thm.text, border:"none", borderRadius:4, cursor:"pointer", fontWeight:600 }}>Activos</button>
+                       <button onClick={() => setProjectFilterTab("archived")} style={{ fontSize:10, padding:"4px 8px", background:projectFilterTab==="archived"?thm.surfaceHigh:"transparent", color:thm.text, border:"none", borderRadius:4, cursor:"pointer", fontWeight:600 }}>Archivados</button>
+                    </div>
+                 </div>
+                 <button onClick={() => setShowNewProject(!showNewProject)} style={{ padding:"5px 12px", background:thm.accentBg, color:thm.accentText, border:"none", borderRadius:6, fontSize:11, fontWeight:700, cursor:"pointer" }}>{showNewProject?"Cancelar":"+ Nueva Marca"}</button>
+              </div>
               {showNewProject && (
                 <div style={{ display:"flex", gap:10, background:thm.inputBg, padding:12, borderRadius:8, marginBottom:12 }}><input value={newProjectData.name} onChange={e=>setNewProjectData(p=>({...p, name:e.target.value}))} placeholder="Nombre de la marca..." style={{...inpStyle, flex:2}}/><select value={newProjectData.type} onChange={e=>setNewProjectData(p=>({...p, type:e.target.value}))} style={inpStyle}>{TYPES.map(t=><option key={t} value={t}>{t}</option>)}</select><button onClick={createProject} style={{ background:"#4ade80", color:thm.bg, border:"none", borderRadius:6, padding:"0 16px", fontWeight:700, cursor:"pointer" }}>Crear</button></div>
               )}
+              
               <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                {clients.filter(c => c.dbStatus !== "archived").map(c => (
+                {clients.filter(c => projectFilterTab === "active" ? c.dbStatus !== "archived" : c.dbStatus === "archived").map(c => (
                   <div key={c.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"8px 12px", background:thm.inputBg, borderRadius:8, border:`1px solid ${thm.border}` }}>
                     <div style={{ width:6, height:6, borderRadius:"50%", background:STA_CLR[c.status] }}/>
-                    <div style={{ flex:1, fontSize:13 }}>{c.name} <span style={{ fontSize:9, color:thm.textMuted }}>({c.type || "proyecto"})</span></div>
+                    <div style={{ flex:1, fontSize:13 }}>{c.name} <span style={{ fontSize:9, color:thm.textMuted }}>({c.type})</span></div>
                     <div style={{ display:"flex", gap:6 }}>
-                      <button onClick={() => archiveProject(c.id, c.name)} style={{ background:"none", border: `1px solid ${thm.border}`, color: thm.textSub, padding:"4px 10px", borderRadius:6, fontSize:11, cursor:"pointer" }}>Archivar</button>
-                      <button onClick={() => deleteProject(c.id, c.name)} style={{ background:"none", border: `1px solid ${thm.deleteBorder}`, color: thm.deleteText, padding:"4px 10px", borderRadius:6, fontSize:11, cursor:"pointer" }}>Eliminar</button>
+                      {c.dbStatus !== "archived" ? (
+                        <button onClick={() => archiveProject(c.id, c.name)} style={{ background:"none", border: `1px solid ${thm.border}`, color: thm.textSub, padding:"4px 10px", borderRadius:6, fontSize:11, cursor:"pointer" }}>Archivar</button>
+                      ) : (
+                        <button onClick={() => unarchiveProject(c.id)} style={{ background:"none", border: `1px solid #4ade80`, color: "#4ade80", padding:"4px 10px", borderRadius:6, fontSize:11, cursor:"pointer" }}>Desarchivar ↺</button>
+                      )}
+                      <button onClick={() => deleteProject(c.id, c.name)} style={{ background:"none", border: `1px solid ${thm.deleteBorder}`, color: thm.deleteText, padding:"4px 10px", borderRadius:6, fontSize:11, cursor:"pointer" }}>Eliminar ✕</button>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
+
+            {/* MAESTRO VALIDATOR DE CONTRASEÑAS DIRECTO EN SUPABASE */}
+            <div style={{ background:thm.surface, borderRadius:14, border:`1px solid ${thm.border}`, marginBottom:24, padding:20 }}>
+               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+                  <div style={{ fontSize:14, fontWeight:700 }}>3. Bóveda de Códigos de Acceso (Seguridad)</div>
+                  <button onClick={() => setShowNewCode(!showNewCode)} style={{ padding:"5px 12px", background:thm.surfaceTop, border:`1px solid ${thm.border}`, borderRadius:6, color:thm.text, fontSize:11, cursor:"pointer" }}>{showNewCode ? "Cerrar" : "+ Código Nuevo"}</button>
+               </div>
+               {showNewCode && (
+                  <form onSubmit={createAccessCode} style={{ display:"flex", gap:8, background:thm.inputBg, padding:12, borderRadius:8, marginBottom:12, flexWrap:"wrap" }}>
+                     <input value={newCodeForm.code} onChange={e=>setNewCodeForm(p=>({...p, code:e.target.value}))} placeholder="Código (ej: arturo2026)" required style={inpStyle} />
+                     <input value={newCodeForm.user_name} onChange={e=>setNewCodeForm(p=>({...p, user_name:e.target.value}))} placeholder="Nombre de la Persona" required style={inpStyle} />
+                     <select value={newCodeForm.role} onChange={e=>setNewCodeForm(p=>({...p, role:e.target.value}))} style={inpStyle}>
+                        <option value="team">Team Member (Colaborador)</option>
+                        <option value="admin">Admin OS (Administrador)</option>
+                     </select>
+                     <button type="submit" style={{ background:"#4ade80", color:thm.bg, border:"none", padding:"0 16px", borderRadius:6, fontWeight:700, cursor:"pointer", fontSize:11 }}>Inyectar Bóveda</button>
+                  </form>
+               )}
+               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(240px, 1fr))", gap:8 }}>
+                  {dbAccessCodes.map(ac => (
+                     <div key={ac.id} style={{ padding:"10px 14px", background:thm.inputBg, borderRadius:8, border:`1px solid ${thm.border}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                        <div>
+                           <div style={{ fontSize:12, fontWeight:700, color:"#60a5fa" }}>{ac.user_name} <span style={{ fontSize:9, color:thm.textMuted, background:thm.surfaceHigh, padding:"1px 4px", borderRadius:3 }}>{ac.role}</span></div>
+                           <div style={{ fontSize:11, color:thm.textSub, letterSpacing:1, marginTop:2 }}>Clave: {ac.code}</div>
+                        </div>
+                        <button type="button" onClick={() => toggleAccessCode(ac.id, ac.is_active)} style={{ background:"none", border: `1px solid ${ac.is_active ? thm.border : "rgba(74,222,128,0.3)"}`, color: ac.is_active ? thm.deleteText : "#4ade80", padding:"3px 8px", borderRadius:4, fontSize:10, cursor:"pointer", fontWeight:600 }}>
+                           {ac.is_active ? "Revocar" : "Activar"}
+                        </button>
+                     </div>
+                  ))}
+               </div>
+            </div>
+
+            {/* AUDITORÍA EN TIEMPO REAL DE ACCESOS (ÚLTIMOS ACCESOS) */}
+            <div style={{ background:thm.surface, borderRadius:14, border:`1px solid ${thm.border}`, padding:20 }}>
+               <div style={{ fontSize:14, fontWeight:700, marginBottom:12 }}>4. Registro de Auditoría de Puertos (`security_logs`)</div>
+               <div style={{ maxHeight:200, overflowY:"auto", display:"flex", flexDirection:"column", gap:6 }}>
+                  {securityLogs.map(log => (
+                     <div key={log.id} style={{ display:"flex", justifyContent:"space-between", padding:"6px 12px", background:thm.inputBg, borderRadius:6, fontSize:11, borderBottom:`1px solid ${thm.borderLight}` }}>
+                        <span style={{ color:"#4ade80" }}>● [{log.action_type.toUpperCase()}] {log.user_name} ({log.role})</span>
+                        <span style={{ color:thm.textMuted }}>{new Date(log.created_at).toLocaleString("es-MX")}</span>
+                     </div>
+                  ))}
+               </div>
+            </div>
+
           </div>
         )}
 
