@@ -80,15 +80,15 @@ export const deadlineInfo = (dl) => {
 
 export const toWho = (name) => {
   const n = (name || "").toLowerCase();
-  if (n.includes("ektor") || n.includes("héct") || n.includes("hect") || n === "ek") return "EK";
-  if (n.includes("artur")) return "Artur";
+  if (n.includes("ektor") || n.includes("héct") || n.includes("hect") || n === "ek") return "Héctor";
+  if (n.includes("artur")) return "Arturo";
   return "Diego";
 };
 
 export const toDbName = (who) => {
-  if (who === "EK") return "Ektor";
-  if (who === "Artur") return "Arturo Macías";
-  return "Diego Beltrán";
+  if (who === "Héctor") return "Héctor";
+  if (who === "Arturo") return "Arturo";
+  return "Diego";
 };
 
 export const getMemberColor = (name) => {
