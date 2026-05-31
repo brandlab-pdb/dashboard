@@ -210,11 +210,25 @@ export default function App() {
          try {
             const { data: dbFeedback } = await supabase.from("feedback_items").select("*").order("created_at", { ascending: false });
             setFeedbackItems(dbFeedback || []);
-            const { data: dbLogs } = await supabase.from("security_logs").select("*").order("created_at", { ascending: false }).limit(20);
-            setSecurityLogs(dbLogs || []);
+         } catch(e) { console.warn("Error leyendo feedback_items"); }
+
+         try {
+            // Leemos solo campos seguros para evitar el Error 400 de Supabase
+            const { data: dbLogs, error: logErr } = await supabase.from("security_logs").select("user_name, action_type, created_at").order("created_at", { ascending: false }).limit(20);
+            if (!logErr) {
+              setSecurityLogs(dbLogs || []);
+            } else {
+              // Si falla por columnas, hacemos un fallback vacío para que no rompa la app
+              setSecurityLogs([]);
+            }
+         } catch(e) { 
+            setSecurityLogs([]); 
+         }
+
+         try {
             const { data: dbCodes } = await supabase.from("access_codes").select("*").order("created_at", { ascending: false });
             setDbAccessCodes(dbCodes || []);
-         } catch(e) { console.warn("Tablas administrativas diferidas."); }
+         } catch(acErr) { console.warn("Error leyendo access_codes"); }
       }
       
       setTeamMembers(dbMembers || []);
@@ -296,7 +310,7 @@ export default function App() {
 
   const restoreTask = async (tid) => {
     setSaving(true);
-    try { await supabase.from("tasks").update({ status:"pending", updated_at: new Date().toISOString() }).eq("id", tid); await syncPipeline(); } catch (e) { console.error(e); }
+ try { await supabase.from("security_logs").insert([{ user_name: match.user, action_type: "login" }]); } catch {}
     setSaving(false);
   };
 
@@ -324,7 +338,7 @@ export default function App() {
   const cyclePrio = async (cid, tid, cur) => {
     const next = PRIO_CYCLE[(PRIO_CYCLE.indexOf(cur)+1) % PRIO_CYCLE.length];
     setSaving(true);
-    try { await supabase.from("tasks").update({ priority:next }).eq("id", tid); await syncPipeline(); } catch (e) { console.error(e); }
+   try { await supabase.from("security_logs").insert([{ user_name: session.user, action_type: "logout" }]); } catch {}
     setSaving(false);
   };
 
