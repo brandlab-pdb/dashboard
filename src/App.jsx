@@ -122,6 +122,7 @@ function TaskRow({ task, cid, teamMembers, activeProjectsList, onCycleState, onC
           {days>0 && <span style={{ fontSize:9, color:days>=3?"#f87171":"#facc15", fontWeight:700 }}>⊘ Pausado {days}d</span>}
           {revOver && <span style={{ fontSize:9, color:"#f87171", fontWeight:700 }}>⚠ {task.revisions} rev</span>}
           
+          {/* SELECTOR DISCRETO PARA ADMINS: RE-ENRUTAR ACTIVIDAD A OTRA MARCA */}
           {isAdmin && !isDone && (
             <select value={cid} onChange={e => onChangeTaskProject(task.id, e.target.value)} style={{ background: thm.surfaceHigh, border: `1px solid ${thm.border}`, color: thm.textSub, fontSize: 10, padding: "2px 6px", borderRadius: 4, cursor: "pointer" }}>
               {activeProjectsList.map(p => <option key={p.id} value={p.id}>→ {p.name}</option>)}
@@ -130,8 +131,8 @@ function TaskRow({ task, cid, teamMembers, activeProjectsList, onCycleState, onC
         </div>
       </div>
       <div style={{ display:"flex", alignItems:"center", gap:6, marginLeft:"auto", flexShrink:0 }}>
-        <button className="btn-action" onClick={(e) => onArchiveTask(task.id, task.text, e)} style={{ background:"none", border:`1px solid ${thm.border}`, borderRadius:6, padding:"4px 8px", cursor:"pointer", fontSize:11, opacity:0.6 }} title="Archivar Actividad">📥</button>
-        <button onClick={e => onDeleteTask(task.id, task.text, e)} style={{ fontSize:10, color:thm.textFaint, background:"none", border:`1px solid ${thm.borderLight}`, borderRadius:5, padding:"4px 8px", cursor:"pointer" }}>✕</button>
+        <button className="btn-action" onClick={() => onArchiveTask(task.id, task.text)} style={{ background:"none", border:`1px solid ${thm.border}`, borderRadius:6, padding:"4px 8px", cursor:"pointer", fontSize:11, opacity:0.6 }} title="Archivar Actividad">📥</button>
+        <button className="btn-action" onClick={() => onDeleteTask(task.id, task.text)} style={{ fontSize:10, color:thm.textFaint, background:"none", border:`1px solid ${thm.borderLight}`, borderRadius:5, padding:"4px 8px", cursor:"pointer" }}>✕</button>
       </div>
     </div>
   );
@@ -184,17 +185,17 @@ export default function App() {
         match = { role: dbCode.role, user: dbCode.user_name };
         await supabase.from("access_codes").update({ last_login: new Date().toISOString() }).eq("code", code);
       }
-    } catch (err) { console.warn("Fallback."); }
+    } catch (err) { console.warn("Fallback local de login."); }
 
     if (!match) match = ACCESS_CODES_STATIC[code];
     if (match) {
       setSession({ loggedIn:true, ...match }); setLoginError(false);
-      try { await supabase.from("security_logs").insert([{ org_id: ORG_ID, user_name: match.user, role: match.role, action_type: "login" }]); } catch {}
+      try { await supabase.from("security_logs").insert([{ user_name: match.user, action_type: "login" }]); } catch {}
     } else { setLoginError(true); }
   };
 
   const handleLogout = async () => {
-    try { await supabase.from("security_logs").insert([{ org_id: ORG_ID, user_name: session.user, role: session.role, action_type: "logout" }]); } catch {}
+    try { await supabase.from("security_logs").insert([{ user_name: session.user, action_type: "logout" }]); } catch {}
     alert("¡Buen trabajo! Gracias por tu esfuerzo hoy en la matriz. Nos vemos en la próxima sesión. 🚀");
     setSession({ loggedIn:false, role:null, user:null }); setAccessCode(""); setLoaded(false);
   };
@@ -210,25 +211,17 @@ export default function App() {
          try {
             const { data: dbFeedback } = await supabase.from("feedback_items").select("*").order("created_at", { ascending: false });
             setFeedbackItems(dbFeedback || []);
-         } catch(e) { console.warn("Error leyendo feedback_items"); }
+         } catch(e) { console.warn("Módulo de feedback desconectado temporalmente"); }
 
          try {
-            // Leemos solo campos seguros para evitar el Error 400 de Supabase
-            const { data: dbLogs, error: logErr } = await supabase.from("security_logs").select("user_name, action_type, created_at").order("created_at", { ascending: false }).limit(20);
-            if (!logErr) {
-              setSecurityLogs(dbLogs || []);
-            } else {
-              // Si falla por columnas, hacemos un fallback vacío para que no rompa la app
-              setSecurityLogs([]);
-            }
-         } catch(e) { 
-            setSecurityLogs([]); 
-         }
+            const { data: dbLogs } = await supabase.from("security_logs").select("user_name, action_type, created_at").order("created_at", { ascending: false }).limit(20);
+            setSecurityLogs(dbLogs || []);
+         } catch(e) { console.warn("Módulo de auditoría desconectado temporalmente"); }
 
          try {
             const { data: dbCodes } = await supabase.from("access_codes").select("*").order("created_at", { ascending: false });
             setDbAccessCodes(dbCodes || []);
-         } catch(acErr) { console.warn("Error leyendo access_codes"); }
+         } catch(acErr) { console.warn("Bóveda de claves en fallback estático"); }
       }
       
       setTeamMembers(dbMembers || []);
@@ -260,22 +253,23 @@ export default function App() {
 
   useEffect(() => { if (session.loggedIn) syncPipeline(); }, [session.loggedIn, syncPipeline]);
 
+  // ── PUERTA DE VALIDACIÓN PARA ARCHIVAR/ELIMINAR (GATING) ──
   const verifyGatedAction = async (actionLabel, taskText) => {
-    if (isAdmin) return true;
-    const code = prompt(`Acción Protegida: Introduce el código de autorización de Administrador para ${actionLabel} "${taskText}":`);
+    if (session.role === "admin" || session.role === "superadmin") return true;
+    const code = prompt(`Mesa de Control: Introduce tu código de Administrador para ${actionLabel} la actividad "${taskText}":`);
     if (!code) return false;
     const match = ACCESS_CODES_STATIC[code.trim().toLowerCase()];
     if (match && (match.role === "admin" || match.role === "superadmin")) {
       try {
         await supabase.from("feedback_items").insert([{
           user_name: session.user || "Equipo",
-          message: `[Código de Seguridad] Acción de [${actionLabel}] autorizada por código en actividad: "${taskText}".`,
+          message: `[Acción Protegida] Se autorizó por código la acción de [${actionLabel}] en la actividad: "${taskText}".`,
           status: "open"
         }]);
-      } catch (err) { console.warn("Error notificando"); }
+      } catch (err) {}
       return true;
     }
-    alert("Código incorrecto. Acción cancelada.");
+    alert("Código incorrecto. Acción cancelada por seguridad.");
     return false;
   };
 
@@ -310,12 +304,11 @@ export default function App() {
 
   const restoreTask = async (tid) => {
     setSaving(true);
- try { await supabase.from("security_logs").insert([{ user_name: match.user, action_type: "login" }]); } catch {}
+    try { await supabase.from("tasks").update({ status:"pending", updated_at: new Date().toISOString() }).eq("id", tid); await syncPipeline(); } catch (e) { console.error(e); }
     setSaving(false);
   };
 
-  const archiveTask = async (tid, text, e) => {
-    e.stopPropagation();
+  const archiveTask = async (tid, text) => {
     const authorized = await verifyGatedAction("Archivar", text);
     if (!authorized) return;
     setSaving(true);
@@ -338,7 +331,7 @@ export default function App() {
   const cyclePrio = async (cid, tid, cur) => {
     const next = PRIO_CYCLE[(PRIO_CYCLE.indexOf(cur)+1) % PRIO_CYCLE.length];
     setSaving(true);
-   try { await supabase.from("security_logs").insert([{ user_name: session.user, action_type: "logout" }]); } catch {}
+    try { await supabase.from("tasks").update({ priority:next }).eq("id", tid); await syncPipeline(); } catch (e) { console.error(e); }
     setSaving(false);
   };
 
@@ -375,8 +368,7 @@ export default function App() {
     setSaving(false);
   };
 
-  const deleteTask = async (tid, text, e) => {
-    e.stopPropagation();
+  const deleteTask = async (tid, text) => {
     const authorized = await verifyGatedAction("Eliminar permanentemente", text);
     if (!authorized) return;
     setSaving(true);
@@ -388,16 +380,16 @@ export default function App() {
     e.preventDefault(); if(!feedbackMsg.trim()) return; setSaving(true);
     const msgLower = feedbackMsg.toLowerCase();
     let computedType = "Operación";
-    if (msgLower.includes("falla") || msgLower.includes("bug") || msgLower.includes("lento") || msgLower.includes("error") || msgLower.includes("no carga")) {
+    if (msgLower.includes("falla") || msgLower.includes("bug") || msgLower.includes("error") || msgLower.includes("no carga")) {
       computedType = "Soporte Técnico";
-    } else if (msgLower.includes("cliente") || msgLower.includes("marca") || msgLower.includes("brief") || msgLower.includes("cambio")) {
+    } else if (msgLower.includes("cliente") || msgLower.includes("marca") || msgLower.includes("cambio")) {
       computedType = "Cliente";
     }
     try { 
       await supabase.from("feedback_items").insert([{ user_name: session.user, message: `[${computedType}] ${feedbackMsg}`, status: "open" }]); 
       setFeedbackMsg(""); setFeedbackSuccess(true); setTimeout(() => setFeedbackSuccess(false), 3000); 
       await syncPipeline();
-    } catch (err) { console.warn("Feedback diferido."); }
+    } catch (err) {}
     setSaving(false);
   };
 
@@ -408,7 +400,7 @@ export default function App() {
   };
 
   const archiveProject = async (projectId, projectName) => {
-    if (!confirm(`¿Estás seguro de archivar el proyecto "${projectName}"? Se removerá del panel activo.`)) return; 
+    if (!confirm(`¿Archivar la cuenta de "${projectName}"? Ya no aparecerá en el dashboard principal.`)) return; 
     setSaving(true);
     try { 
       await supabase.from("projects").update({ status:"archived" }).eq("id", projectId); 
@@ -420,15 +412,12 @@ export default function App() {
 
   const unarchiveProject = async (projectId) => {
     setSaving(true);
-    try {
-      await supabase.from("projects").update({ status:"active" }).eq("id", projectId);
-      await syncPipeline();
-    } catch(e) { console.error(e); }
+    try { await supabase.from("projects").update({ status:"active" }).eq("id", projectId); await syncPipeline(); } catch(e) { console.error(e); }
     setSaving(false);
   };
 
   const deleteProject = async (projectId, projectName) => {
-    if (!confirm(`⚠ ALERTA MÁXIMA: ¿Estás completamente seguro de ELIMINAR permanentemente el proyecto "${projectName}" y todas sus actividades vinculadas?`)) return;
+    if (!confirm(`⚠ ALERTA: ¿Eliminar permanentemente el proyecto "${projectName}" y todas sus actividades vinculadas?`)) return;
     setSaving(true);
     try {
       await supabase.from("tasks").delete().eq("project_id", projectId);
@@ -452,8 +441,8 @@ export default function App() {
   };
 
   const deleteTeamMember = async (id) => {
-    if(!confirm("¿Estás seguro de eliminar este integrante?")) return; setSaving(true);
-    try { const { error } = await supabase.from("team_members").delete().eq("id", id); if (error) alert("Reasigna tareas pendientes."); await syncPipeline(); } catch (e) { console.error(e); }
+    if(!confirm("¿Eliminar este integrante?")) return; setSaving(true);
+    try { await supabase.from("team_members").delete().eq("id", id); await syncPipeline(); } catch (e) { console.error(e); }
     setSaving(false);
   };
 
@@ -471,16 +460,20 @@ export default function App() {
 
   const toggleAccessCode = async (id, currentStatus) => {
     setSaving(true);
-    try {
-      await supabase.from("access_codes").update({ is_active: !currentStatus }).eq("id", id);
-      await syncPipeline();
-    } catch(err) { console.error(err); }
+    try { await supabase.from("access_codes").update({ is_active: !currentStatus }).eq("id", id); await syncPipeline(); } catch(err) {}
     setSaving(false);
+  };
+
+  const generateDailyBriefs = () => {
+    setWaBriefs({
+      Héctor: "🔥 *Versiona Daily Brief · Héctor*\n• Grabar contenido para Reels 🎬.\n• Apoyar en sesión de fotos de producto.",
+      Arturo: "📚 *Versiona Daily Brief · Arturo*\n• Cerrar propuesta y estrategia comercial 🚀.\n• Revisar reportes de pauta en Meta Ads.",
+      Diego: "🧠 *Versiona Daily Brief · Diego*\n• Monitorear despliegue de Dashboard OS.\n• Revisar mesa de control del equipo."
+    });
   };
 
   // ── DATA ENGINE DERIVADA ──
   const isAdmin         = session.role === "admin" || session.role === "superadmin";
-  const isSuperAdmin    = session.role === "superadmin";
   const adminProjects   = clients.filter(c => (c.type==="admin" || c.name.toLowerCase().includes("admin")) && c.dbStatus !== "archived");
   const regularProjects = clients.filter(c => !adminProjects.some(a=>a.id===c.id) && c.dbStatus !== "archived");
   const activeProjects  = regularProjects.filter(c => c.tasks && c.tasks.some(t => t.state !== "done" && t.state !== "archived"));
@@ -517,10 +510,45 @@ export default function App() {
   const timeStr = now.toLocaleDateString("es-MX", { weekday:"short", day:"2-digit", month:"short" }) + " · " + now.toLocaleTimeString("es-MX", { hour:"2-digit", minute:"2-digit" }); 
   const inpStyle = { background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, fontSize:12, padding:"9px 12px", outline:"none" };
 
+  // CÁLCULO DE GRÁFICA DE PASTEL (TEAM TAB)
+  const pieGradientParts = totalActiveTasksGlobal === 0 
+    ? "#4ade80 0% 100%" 
+    : teamMembers.map((m) => {
+        const mActive = clients.flatMap(c => c.tasks ? c.tasks.filter(t => t.assigned_to === m.id && t.state !== "done" && t.state !== "archived") : []).length;
+        return { color: getMemberColor(m.name), count: mActive };
+      }).reduce((acc, curr) => {
+        if (curr.count === 0) return acc;
+        const pct = (curr.count / totalActiveTasksGlobal) * 100;
+        const start = acc.currSum;
+        acc.currSum += pct;
+        acc.strings.push(`${curr.color} ${start}% ${acc.currSum}%`);
+        return acc;
+      }, { strings: [], currSum: 0 }).strings.join(", ");
+
   // ── SCREEN RENDER ──
+  if (!session.loggedIn) {
+    const currentDate = now.toLocaleDateString("es-MX", { weekday:"long", day:"2-digit", month:"long", year:"numeric" });
+    return (
+      <div style={{ height:"100vh", background:thm.bg, display:"flex", alignItems:"center", justifyContent:"center", padding:20, fontFamily:font }}>
+        <form onSubmit={handleLogin} className="fade-up" style={{ background:thm.surface, padding:40, borderRadius:16, border:`1px solid ${thm.border}`, width:"100%", maxWidth:360, textAlign:"center" }}>
+          <div className="font-serif" style={{ fontSize:26, marginBottom:6, color:"#eef0f3" }}>VERSIONA<span style={{ color:"#F47920" }}>O</span><span style={{ color:"#29ABE2", fontStyle:"italic" }}>S</span></div>
+          <div style={{ fontSize:10, color:thm.textMuted, letterSpacing:2, marginBottom:6, textTransform:"uppercase" }}>Workspace de Producción</div>
+          <div style={{ fontSize:11, color:thm.textMuted, marginBottom:32, textTransform:"capitalize" }}>{currentDate}</div>
+          <div style={{ position:"relative", marginBottom:10 }}>
+            <input type={showPass ? "text" : "password"} value={accessCode} onChange={e => setAccessCode(e.target.value)} placeholder="Código de acceso al equipo" autoFocus style={{ width:"100%", background:thm.inputBg, border:`1px solid ${loginError?"#f87171":thm.border}`, borderRadius:8, padding:"12px 40px 12px 12px", color:thm.text, fontSize:14, outline:"none", textAlign:"center", letterSpacing:2 }}/>
+            <button type="button" className="eye-btn" onClick={() => setShowPass(p=>!p)}>{showPass ? "🙈" : "👁"}</button>
+          </div>
+          {loginError && <div style={{ fontSize:11, color:"#f87171", marginBottom:12, fontWeight:700 }}>CÓDIGO INVÁLIDO</div>}
+          <button type="submit" style={{ width:"100%", background:thm.text, color:thm.bg, border:"none", borderRadius:8, padding:12, fontSize:12, fontWeight:700, cursor:"pointer", letterSpacing:1, textTransform:"uppercase" }}>Acceder al Flujo</button>
+        </form>
+      </div>
+    );
+  }
+
+  if (!loaded) return <div style={{ height:"100vh", background:thm.bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16, fontFamily:font }}><div className="font-serif" style={{ fontSize:22, color:thm.text }}>VERSIONA<span style={{ color:"#F47920" }}>O</span><span style={{ color:"#29ABE2", fontStyle:"italic" }}>S</span></div><div className="pulse" style={{ fontSize:11, color:thm.textMuted, letterSpacing:2 }}>SINCRONIZANDO MATRIZ</div></div>;
+
   return (
     <div style={{ minHeight:"100vh", background:thm.bg, color:thm.text, display:"flex", flexDirection:"column", fontFamily:font }}>
-      {/* HEADER MASTER NAV */}
       <div style={{ borderBottom:`1px solid ${thm.border}`, padding:"0 24px", display:"flex", alignItems:"center", height:60, flexShrink:0, background:thm.navBg, gap:16 }}>
         <div className="font-serif" style={{ fontSize:19, letterSpacing:.5, flexShrink:0 }}>VERSIONA<span style={{ color:"#F47920" }}>O</span><span style={{ color:"#29ABE2", fontStyle:"italic" }}>S</span></div>
         <div style={{ display:"flex", gap:3, background:thm.surfaceTop, borderRadius:8, padding:3, overflowX:"auto", flex:1, maxWidth:850 }}>
@@ -545,7 +573,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* KPIs STRIP */}
       <div style={{ display:"flex", borderBottom:`1px solid ${thm.border}`, flexShrink:0, background:thm.navBg }}>
         {[{ l:"Activas", v:allPend, c:thm.text }, { l:"Bloqueadas", v:allBlock, c:allBlock>0?"#f87171":thm.textMuted }, { l:"Vencidas", v:allOver, c:allOver>0?"#facc15":thm.textMuted }, { l:"Listas", v:allDone.length, c:"#4ade80" }].map((k,i) => (
           <div key={i} style={{ flex:1, padding:"10px 8px", textAlign:"center", borderRight:i<3?`1px solid ${thm.border}`:"none" }}>
@@ -557,7 +584,6 @@ export default function App() {
 
       <div style={{ flex:1, display:"flex", overflow:"hidden" }}>
         
-        {/* ══ DASHBOARD PRINCIPAL ══ */}
         {view === "dashboard" && (
           <>
             <div style={{ width:240, borderRight:`1px solid ${thm.border}`, background:thm.surface, overflowY:"auto", flexShrink:0, display:"flex", flexDirection:"column" }}>
@@ -596,9 +622,8 @@ export default function App() {
                     </h2>
                     <div style={{ display: "flex", alignItems: "center", gap:12 }}>
                       <select value={orderCriteria} onChange={e => setOrderCriteria(e.target.value)} style={{ background: thm.surface, border: `1px solid ${thm.border}`, color: thm.textSub, fontSize: 11, padding: "6px 10px", borderRadius: 6, cursor: "pointer", fontWeight:600 }}>
-                        <option value="default">Orden Cronológico</option> <option value="priority">Agrupar por Prioridad</option> <option value="person">Agrupar por Persona</option>
+                        <option value="default">Orden Cronológico</option> <option value="priority">Agrupar Prioridad</option> <option value="person">Agrupar Persona</option>
                       </select>
-                      <span style={{ fontSize:10, color:thm.textMuted }}>{getActive(client.tasks).length} activas</span>
                     </div>
                   </div>
 
@@ -626,11 +651,11 @@ export default function App() {
                     <div className="fade-up" style={{ display:"flex", gap:8, flexWrap:"wrap", padding:18, background:thm.surface, borderRadius:12, border:`1px solid ${thm.border}` }}>
                       <input value={newTask.text} onChange={e=>setNewTask(p=>({...p,text:e.target.value.slice(0,MAX_TASK_LEN)}))} onKeyDown={e=>e.key==="Enter"&&addTask()} placeholder="Describe la actividad..." autoFocus style={{ ...inpStyle, flex:1, minWidth:180 }}/>
                       <label style={{display:"flex", alignItems:"center", gap:8, background:thm.inputBg, padding:"0 12px", border:`1px solid ${thm.border}`, borderRadius:8, fontSize:11, color:thm.textSub, cursor:"pointer", fontWeight:600}}>
-                        <input type="checkbox" checked={newTask.is_service} onChange={e=>setNewTask(p=>({...p, is_service: e.target.checked}))}/> Entregable Servicio
+                        <input type="checkbox" checked={newTask.is_service} onChange={e=>setNewTask(p=>({...p, is_service: e.target.checked}))}/> Es Servicio
                       </label>
                       {newTask.is_service && (
                         <select value={newTask.service_id || ""} onChange={e => setNewTask(p => ({...p, service_id: e.target.value}))} style={{ ...inpStyle, fontSize:11, borderColor:"rgba(192,132,252,0.4)", color:"#c084fc" }}>
-                          <option value="">Seleccionar entregable estándar...</option>
+                          <option value="">Seleccionar entregable...</option>
                           {CREATIVE_SERVICES_CATALOG.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
                       )}
@@ -652,18 +677,17 @@ export default function App() {
           </>
         )}
 
-        {/* ══ VIEW: CATALOGO DE SERVICIOS POR TIPO ══ */}
         {view === "servicios" && isAdmin && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg, maxWidth:850, margin:"0 auto", width:"100%" }}>
             <h2 className="font-serif" style={{ fontSize:30, marginBottom:6 }}>📋 Servicios</h2>
             <p style={{ fontSize:13, color:thm.textSub, marginBottom:28 }}>Mapeo de entregables activos y sesiones estructuradas.</p>
-            {CREATIVE_SERVICES_CATALOG.every(srv => clients.flatMap(c => (c.tasks || []).filter(t => (t.service_id === srv.id || (srv.id === "srv_photo" && t.category === "📚")) && t.state !== "done")).length === 0) ? (
-               <div style={{ textAlign:"center", padding:48, color:thm.textMuted, background:thm.surface, borderRadius:14, border:`1px dashed ${thm.border}` }}>No hay entregables o pautas activas mapeadas.</div>
+            {CREATIVE_SERVICES_CATALOG.every(srv => clients.flatMap(c => (c.tasks || []).filter(t => t.service_id === srv.id && t.state !== "done")).length === 0) ? (
+               <div style={{ textAlign:"center", padding:48, color:thm.textMuted, background:thm.surface, borderRadius:14, border:`1px dashed ${thm.border}` }}>No hay entregables mapeados.</div>
             ) : (
                <div style={{ display:"flex", flexDirection:"column", gap:24 }}>
                   {CREATIVE_SERVICES_CATALOG.map(srv => {
                      const tasksForService = clients.flatMap(c => 
-                        (c.tasks || []).filter(t => (t.service_id === srv.id || (srv.id === "srv_photo" && t.category === "📚")) && t.state !== "done" && t.state !== "archived").map(t => ({ ...t, cname: c.name }))
+                        (c.tasks || []).filter(t => t.service_id === srv.id && t.state !== "done" && t.state !== "archived").map(t => ({ ...t, cname: c.name }))
                      );
                      if (tasksForService.length === 0) return null;
                      return (
@@ -695,7 +719,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ══ VIEW: FEEDBACK LOOP / SOPORTE INTELLIGENT BUZÓN ══ */}
         {view === "feedback" && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg, maxWidth:isAdmin ? 800 : 600, margin:"0 auto", width:"100%" }}>
             {isAdmin ? (
@@ -728,7 +751,7 @@ export default function App() {
                   <h2 className="font-serif" style={{ fontSize:30, marginBottom:6 }}>⚙️ Reportar Fricción / Soporte</h2>
                   <p style={{ fontSize:13, color:thm.textSub, marginBottom:28, lineHeight:1.6 }}>¿Detectaste cuellos de botella o lentitud en el flujo? Descríbelo aquí. Llegará clasificado automáticamente a la mesa de control del Admin.</p>
                   <form onSubmit={handleFeedbackSubmit}>
-                     <textarea value={feedbackMsg} onChange={e => setFeedbackMsg(e.target.value)} placeholder="Ej: No me deja archivar la tarea X, o los guiones van muy lentos esta semana..." style={{ width: "100%", minHeight: 140, background: thm.surface, border: `1px solid ${thm.border}`, borderRadius: 12, color: thm.text, fontSize: 13, padding: 20, outline: "none", lineHeight: 1.6, resize: "none", marginBottom: 16 }} />
+                     <textarea value={feedbackMsg} onChange={e => setFeedbackMsg(e.target.value)} placeholder="Ej: No me deja archivar la tarea X..." style={{ width: "100%", minHeight: 140, background: thm.surface, border: `1px solid ${thm.border}`, borderRadius: 12, color: thm.text, fontSize: 13, padding: 20, outline: "none", lineHeight: 1.6, resize: "none", marginBottom: 16 }} />
                      <button type="submit" disabled={saving || !feedbackMsg.trim()} style={{ background: thm.text, color: thm.bg, border: "none", borderRadius: 8, padding: "12px 24px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Enviar Nota</button>
                   </form>
                   {feedbackSuccess && <div className="fade-up" style={{ marginTop: 16, background: "rgba(74,222,128,0.1)", border: "1px solid rgba(74,222,128,0.2)", color: "#4ade80", padding: "12px 16px", borderRadius: 8, fontSize: 12, fontWeight: 600 }}>✓ Nota procesada de forma segura por la matriz.</div>}
@@ -737,11 +760,10 @@ export default function App() {
           </div>
         )}
 
-        {/* ══ VIEW: PAUSAS ACTIVAS ══ */}
         {view === "blocked" && (
           <div style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg, display:"flex", flexDirection:"column", gap:8 }}>
             <h2 className="font-serif" style={{ fontSize:28, color:"#f87171", margin:"0 0 12px 0" }}>⊘ Contenidos Pausados</h2>
-            {blockedAll.length === 0 ? <div style={{ color:thm.textMuted, fontSize:13 }}>Sin contenidos bloqueados en este periodo. 🙌</div> : blockedAll.map(t => (
+            {blockedAll.length === 0 ? <div style={{ color:thm.textMuted, fontSize:13 }}>Sin contenidos bloqueados. 🙌</div> : blockedAll.map(t => (
               <div key={t.id} style={{ padding:16, background:thm.surface, borderRadius:12, border:`1px solid ${thm.border}`, borderLeft:"4px solid #f87171", fontSize:13 }}>
                 <div style={{ fontWeight:600, color:thm.text }}>{t.text}</div>
                 <div style={{ display:"flex", gap:8, fontSize:11, color:thm.textMuted, marginTop:6 }}>
@@ -753,25 +775,12 @@ export default function App() {
           </div>
         )}
 
-        {/* ══ VIEW: TEAM / EQUIPO SEGMENTADO (GRAFICA COLOR MATRIX PURA) ══ */}
         {(view === "team" || view === "equipo") && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"22px", background:thm.bg }}>
-            
-            {/* GRÁFICA DE PASTEL INTERACTIVA SEGMENTADA POR COLOR (SIN TEXTOS MOLESTOS) */}
             <div style={{ display: "flex", justifyContent: "center", marginBottom: 36 }}>
                <div style={{
                  width: 142, height: 142, borderRadius: "50%", 
-                 background: totalActiveTasksGlobal === 0 ? "#4ade80" : `conic-gradient(${
-                   teamMembers.map((m, idx) => {
-                     const cnt = clients.flatMap(c => (c.tasks || []).filter(t => t.assigned_to === m.id && t.state !== "done" && t.state !== "archived")).length;
-                     return { color: getMemberColor(m.name), weight: (cnt / (totalActiveTasksGlobal || 1)) * 100 };
-                   }).reduce((acc, curr) => {
-                     if (curr.weight === 0) return acc;
-                     const start = acc.currSum; acc.currSum += curr.weight;
-                     acc.strings.push(`${curr.color} ${start}% ${acc.currSum}%`);
-                     return acc;
-                   }, { strings: [], currSum: 0 }).strings.join(", ")
-                 })`,
+                 background: totalActiveTasksGlobal === 0 ? "#4ade80" : `conic-gradient(${pieGradientParts})`,
                  display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 32px rgba(0,0,0,0.6)", transition: "all 0.4s ease"
                }}>
                   <div style={{ width: 88, height: 88, background: thm.surface, borderRadius: "50%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center" }}>
@@ -806,11 +815,10 @@ export default function App() {
           </div>
         )}
 
-        {/* ══ VIEW: COMPLETADAS / ANÁLISIS SEMANAL (EXCLUSIVO ADMIN) ══ */}
         {view === "completadas" && isAdmin && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg, width:"100%" }}>
             <h2 className="font-serif" style={{ fontSize:32, margin:"0 0 4px 0" }}>📊 Análisis Semanal</h2>
-            <p style={{ fontSize:13, color:thm.textSub, marginBottom:24 }}>Estatus estructural y métricas de pauta correspondientes al cierre semanal.</p>
+            <p style={{ fontSize:13, color:thm.textSub, marginBottom:24 }}>Estatus estructural y métricas correspondientes al cierre semanal.</p>
 
             <div style={{ display:"flex", flexDirection:"column", gap:24 }}>
               <div style={{ background:thm.surface, borderRadius:14, padding:24, border:`1px solid ${thm.border}` }}>
@@ -824,20 +832,17 @@ export default function App() {
 
               <WeeklyChart allDone={allDone} />
 
-              {/* SEMÁFORO DE AUDITORÍA */}
               <div style={{ background:thm.surface, borderRadius:14, padding:24, border:`1px solid ${thm.border}` }}>
                 <div style={{ fontSize:10, color:thm.textMuted, letterSpacing:1.5, textTransform:"uppercase", marginBottom:16, fontWeight:700 }}>Semáforo de Intención Semanal</div>
-                <div className="semaforo-win" style={{ marginBottom:12 }}><span style={{ fontSize:24 }}>🏆</span><div style={{ flex:1 }}><div style={{ fontSize:11, color:"#4ade80", fontWeight:700 }}>LOGRO DE IMPACTO SEMANAL</div><textarea rows={2} placeholder="Ej: Logramos liberar la campaña completa de Casa de la guitarra 2 días antes." style={{ width:"100%", background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, padding:10, marginTop:6 }}/></div></div>
-                <div className="semaforo-warn" style={{ marginBottom:12 }}><span style={{ fontSize:24 }}>🚀</span><div style={{ flex:1 }}><div style={{ fontSize:11, color:"#facc15", fontWeight:700 }}>AVANCE DESTACADO DE CONTENIDO</div><textarea rows={2} placeholder="Ej: Destrabamos las pautas y guiones para Renace con Cariño, ya listos para rodaje." style={{ width:"100%", background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, padding:10, marginTop:6 }}/></div></div>
-                <div className="semaforo-risk"><span style={{ fontSize:24 }}>⚠️</span><div style={{ flex:1 }}><div style={{ fontSize:11, color:"#f87171", fontWeight:700 }}>RIESGO / CUELLO DE BOTELLA CRÍTICO</div><textarea rows={2} placeholder="Ej: Falta confirmación de accesos de Meta Business Manager por parte del cliente." style={{ width:"100%", background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, padding:10, marginTop:6 }}/></div></div>
+                <div className="semaforo-win" style={{ marginBottom:12 }}><span style={{ fontSize:24 }}>🏆</span><div style={{ flex:1 }}><div style={{ fontSize:11, color:"#4ade80", fontWeight:700 }}>LOGRO DE IMPACTO SEMANAL</div><textarea rows={2} placeholder="Ej: Logramos liberar la campaña." style={{ width:"100%", background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, padding:10, marginTop:6 }}/></div></div>
+                <div className="semaforo-warn" style={{ marginBottom:12 }}><span style={{ fontSize:24 }}>🚀</span><div style={{ flex:1 }}><div style={{ fontSize:11, color:"#facc15", fontWeight:700 }}>AVANCE DESTACADO DE CONTENIDO</div><textarea rows={2} placeholder="Ej: Destrabamos las pautas." style={{ width:"100%", background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, padding:10, marginTop:6 }}/></div></div>
+                <div className="semaforo-risk"><span style={{ fontSize:24 }}>⚠️</span><div style={{ flex:1 }}><div style={{ fontSize:11, color:"#f87171", fontWeight:700 }}>RIESGO / CUELLO DE BOTELLA CRÍTICO</div><textarea rows={2} placeholder="Ej: Falta confirmación de accesos." style={{ width:"100%", background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, padding:10, marginTop:6 }}/></div></div>
               </div>
 
-              {/* WHATSAPP BRIEFING GENERATOR */}
               <div style={{ background:thm.surface, borderRadius:14, padding:24, border:`1px solid ${thm.border}` }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
                   <div>
                     <div style={{ fontSize:14, fontWeight:700 }}>WhatsApp Daily Brief Loop Matrix</div>
-                    <div style={{ fontSize:11, color:thm.textMuted }}>Genera bloques limpios listos para copiar y distribuir en chats de trabajo.</div>
                   </div>
                   <button onClick={generateDailyBriefs} style={{ background:thm.text, color:thm.bg, border:"none", padding:"8px 16px", borderRadius:6, fontWeight:700, cursor:"pointer", fontSize:11 }}>Generar Briefings</button>
                 </div>
@@ -856,10 +861,9 @@ export default function App() {
                 )}
               </div>
 
-              {/* BUFFER REVISIÓN HISTÓRICA DE ACTIVIDADES ARCHIVADAS */}
               {getArchivedTasks().length > 0 && (
                 <div style={{ background:thm.surface, borderRadius:14, padding:24, border:`1px solid ${thm.border}` }}>
-                  <div style={{ fontSize:11, color:thm.textMuted, fontWeight:700, letterSpacing:1.5, marginBottom:12, textTransform:"uppercase" }}>📁 Buffer de Actividades Archivadas de la Agencia</div>
+                  <div style={{ fontSize:11, color:thm.textMuted, fontWeight:700, letterSpacing:1.5, marginBottom:12, textTransform:"uppercase" }}>📁 Buffer de Actividades Archivadas</div>
                   <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                     {getArchivedTasks().map(t => (
                       <div key={t.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", background:thm.inputBg, borderRadius:10, border:`1px solid ${thm.border}`, opacity:0.6 }}>
@@ -901,7 +905,6 @@ export default function App() {
             <h2 className="font-serif" style={{ margin:"0 0 8px 0", fontSize:30 }}>⚙ Configuración del Flujo Matrix</h2>
             <p style={{ fontSize:13, color:thm.textSub, marginBottom:28 }}>Panel maestro administrativo central.</p>
 
-            {/* INTEGRANTES */}
             <div style={{ background:thm.surface, borderRadius:14, border:`1px solid ${thm.border}`, marginBottom:24, padding:20 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}><div style={{ fontSize:14, fontWeight:700 }}>1. Integrantes del Equipo</div><button onClick={() => setShowNewMember(!showNewMember)} style={{ padding:"5px 12px", background:thm.surfaceTop, border:`1px solid ${thm.border}`, borderRadius:6, color:thm.text, fontSize:11, cursor:"pointer" }}>{showNewMember?"Cerrar":"+ Integrante"}</button></div>
               {showNewMember && (
@@ -912,7 +915,6 @@ export default function App() {
               ))}
             </div>
 
-            {/* CONTROL DE PROYECTOS (CON MESA FILTRABLE DE ARCHIVADOS) */}
             <div style={{ background:thm.surface, borderRadius:14, border:`1px solid ${thm.border}`, marginBottom:24, padding:20 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
                  <div style={{ display: "flex", gap:12, alignItems:"center" }}>
@@ -946,7 +948,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* BOVEDA CODES MASTER ACCESOS */}
             <div style={{ background:thm.surface, borderRadius:14, border:`1px solid ${thm.border}`, marginBottom:24, padding:20 }}>
                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
                   <div style={{ fontSize:14, fontWeight:700 }}>3. Bóveda de Códigos de Acceso (Seguridad)</div>
@@ -978,13 +979,12 @@ export default function App() {
                </div>
             </div>
 
-            {/* AUDITORÍA DE ACCESOS */}
             <div style={{ background:thm.surface, borderRadius:14, padding:20 }}>
                <div style={{ fontSize:14, fontWeight:700, marginBottom:12 }}>4. Registro de Auditoría de Puertos (`security_logs`)</div>
                <div style={{ maxHeight:200, overflowY:"auto", display:"flex", flexDirection:"column", gap:6 }}>
                   {securityLogs.map(log => (
                      <div key={log.id} style={{ display:"flex", justifyContent:"space-between", padding:"6px 12px", background:thm.inputBg, borderRadius:6, fontSize:11, borderBottom:`1px solid ${thm.borderLight}` }}>
-                        <span style={{ color:"#4ade80" }}>● [{log.action_type.toUpperCase()}] {log.user_name} ({log.role})</span>
+                        <span style={{ color:"#4ade80" }}>● [{log.action_type.toUpperCase()}] {log.user_name}</span>
                         <span style={{ color:thm.textMuted }}>{new Date(log.created_at).toLocaleString("es-MX")}</span>
                      </div>
                   ))}
