@@ -170,6 +170,11 @@ export default function App() {
   const [newCodeForm,    setNewCodeForm]    = useState({ code:"", user_name:"", role:"team" });
   const [showNewCode,    setShowNewCode]    = useState(false);
 
+  // Estados para Auditoría Semanal
+  const [auditWin, setAuditWin] = useState("");
+  const [auditWarn, setAuditWarn] = useState("");
+  const [auditRisk, setAuditRisk] = useState("");
+
   const [now, setNow] = useState(new Date());
   useEffect(() => { const timer = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(timer); }, []);
   useEffect(() => { injectStyles(); }, []);
@@ -184,17 +189,25 @@ export default function App() {
         match = { role: dbCode.role, user: dbCode.user_name };
         await supabase.from("access_codes").update({ last_login: new Date().toISOString() }).eq("code", code);
       }
-    } catch (err) { console.warn("Fallback."); }
+    } catch (err) { console.warn("Fallback local de login."); }
 
     if (!match) match = ACCESS_CODES_STATIC[code];
     if (match) {
       setSession({ loggedIn:true, ...match }); setLoginError(false);
-      try { await supabase.from("security_logs").insert([{ user_name: match.user, action_type: "login" }]); } catch {}
+      try { 
+        await supabase.from("security_logs").insert([{ org_id: ORG_ID, user_name: match.user, role: match.role, action_type: "login" }]); 
+      } catch (e) {
+        try { await supabase.from("security_logs").insert([{ user_name: match.user, action_type: "login" }]); } catch(err){}
+      }
     } else { setLoginError(true); }
   };
 
   const handleLogout = async () => {
-    try { await supabase.from("security_logs").insert([{ user_name: session.user, action_type: "logout" }]); } catch {}
+    try { 
+      await supabase.from("security_logs").insert([{ org_id: ORG_ID, user_name: session.user, role: session.role, action_type: "logout" }]); 
+    } catch (e) {
+      try { await supabase.from("security_logs").insert([{ user_name: session.user, action_type: "logout" }]); } catch(err){}
+    }
     alert("¡Buen trabajo! Gracias por tu esfuerzo hoy en la matriz. Nos vemos en la próxima sesión. 🚀");
     setSession({ loggedIn:false, role:null, user:null }); setAccessCode(""); setLoaded(false);
   };
@@ -210,17 +223,17 @@ export default function App() {
          try {
             const { data: dbFeedback } = await supabase.from("feedback_items").select("*").order("created_at", { ascending: false });
             setFeedbackItems(dbFeedback || []);
-         } catch(e) { console.warn("Error leyendo feedback_items"); }
+         } catch(e) { console.warn("Módulo de feedback desconectado temporalmente"); }
 
          try {
-            const { data: dbLogs } = await supabase.from("security_logs").select("user_name, action_type, created_at").order("created_at", { ascending: false }).limit(20);
+            const { data: dbLogs } = await supabase.from("security_logs").select("user_name, role, action_type, created_at").order("created_at", { ascending: false }).limit(20);
             setSecurityLogs(dbLogs || []);
-         } catch(e) { console.warn("Error leyendo logs"); }
+         } catch(e) { console.warn("Módulo de auditoría desconectado temporalmente"); }
 
          try {
             const { data: dbCodes } = await supabase.from("access_codes").select("*").order("created_at", { ascending: false });
             setDbAccessCodes(dbCodes || []);
-         } catch(acErr) { console.warn("Error leyendo access_codes"); }
+         } catch(acErr) { console.warn("Bóveda de claves en fallback estático"); }
       }
       
       setTeamMembers(dbMembers || []);
@@ -254,20 +267,21 @@ export default function App() {
 
   const verifyGatedAction = async (actionLabel, taskText) => {
     if (session.role === "admin" || session.role === "superadmin") return true;
-    const code = prompt(`Acción Protegida: Introduce el código de autorización de Administrador para ${actionLabel} "${taskText}":`);
+    const code = prompt(`Mesa de Control: Introduce tu código de Administrador para ${actionLabel} la actividad "${taskText}":`);
     if (!code) return false;
     const match = ACCESS_CODES_STATIC[code.trim().toLowerCase()];
     if (match && (match.role === "admin" || match.role === "superadmin")) {
       try {
         await supabase.from("feedback_items").insert([{
+          org_id: ORG_ID,
           user_name: session.user || "Equipo",
-          message: `[Código de Seguridad] Acción de [${actionLabel}] autorizada por código en actividad: "${taskText}".`,
+          message: `[Acción Protegida] Se autorizó por código la acción de [${actionLabel}] en la actividad: "${taskText}".`,
           status: "open"
         }]);
-      } catch (err) { console.warn("Error notificando"); }
+      } catch (err) {}
       return true;
     }
-    alert("Código incorrecto. Acción cancelada.");
+    alert("Código incorrecto. Acción cancelada por seguridad.");
     return false;
   };
 
@@ -378,16 +392,32 @@ export default function App() {
     e.preventDefault(); if(!feedbackMsg.trim()) return; setSaving(true);
     const msgLower = feedbackMsg.toLowerCase();
     let computedType = "Operación";
-    if (msgLower.includes("falla") || msgLower.includes("bug") || msgLower.includes("lento") || msgLower.includes("error") || msgLower.includes("no carga")) {
+    if (msgLower.includes("falla") || msgLower.includes("bug") || msgLower.includes("error") || msgLower.includes("no carga")) {
       computedType = "Soporte Técnico";
-    } else if (msgLower.includes("cliente") || msgLower.includes("marca") || msgLower.includes("brief") || msgLower.includes("cambio")) {
+    } else if (msgLower.includes("cliente") || msgLower.includes("marca") || msgLower.includes("cambio")) {
       computedType = "Cliente";
     }
     try { 
-      await supabase.from("feedback_items").insert([{ user_name: session.user, message: `[${computedType}] ${feedbackMsg}`, status: "open" }]); 
+      // Enviando con org_id para evitar Error 400
+      await supabase.from("feedback_items").insert([{ org_id: ORG_ID, user_name: session.user, message: `[${computedType}] ${feedbackMsg}`, status: "open" }]); 
       setFeedbackMsg(""); setFeedbackSuccess(true); setTimeout(() => setFeedbackSuccess(false), 3000); 
       await syncPipeline();
-    } catch (err) { console.warn("Feedback diferido."); }
+    } catch (err) {
+      try { await supabase.from("feedback_items").insert([{ user_name: session.user, message: `[${computedType}] ${feedbackMsg}`, status: "open" }]); } catch(e){}
+    }
+    setSaving(false);
+  };
+
+  const handleSaveAudit = async () => {
+    if (!auditWin.trim() && !auditWarn.trim() && !auditRisk.trim()) return;
+    setSaving(true);
+    const message = `[Auditoría Semanal]\n🏆 LOGRO: ${auditWin || 'N/A'}\n🚀 AVANCE: ${auditWarn || 'N/A'}\n⚠️ RIESGO: ${auditRisk || 'N/A'}`;
+    try {
+      await supabase.from("feedback_items").insert([{ org_id: ORG_ID, user_name: session.user, message, status: "open" }]);
+      alert("Auditoría guardada exitosamente en el historial del buzón.");
+      setAuditWin(""); setAuditWarn(""); setAuditRisk("");
+      await syncPipeline();
+    } catch (err) {}
     setSaving(false);
   };
 
@@ -410,10 +440,7 @@ export default function App() {
 
   const unarchiveProject = async (projectId) => {
     setSaving(true);
-    try {
-      await supabase.from("projects").update({ status:"active" }).eq("id", projectId);
-      await syncPipeline();
-    } catch(e) { console.error(e); }
+    try { await supabase.from("projects").update({ status:"active" }).eq("id", projectId); await syncPipeline(); } catch(e) { console.error(e); }
     setSaving(false);
   };
 
@@ -443,7 +470,7 @@ export default function App() {
 
   const deleteTeamMember = async (id) => {
     if(!confirm("¿Estás seguro de eliminar este integrante?")) return; setSaving(true);
-    try { const { error } = await supabase.from("team_members").delete().eq("id", id); if (error) alert("Reasigna tareas pendientes."); await syncPipeline(); } catch (e) { console.error(e); }
+    try { await supabase.from("team_members").delete().eq("id", id); await syncPipeline(); } catch (e) { console.error(e); }
     setSaving(false);
   };
 
@@ -461,17 +488,14 @@ export default function App() {
 
   const toggleAccessCode = async (id, currentStatus) => {
     setSaving(true);
-    try {
-      await supabase.from("access_codes").update({ is_active: !currentStatus }).eq("id", id);
-      await syncPipeline();
-    } catch(err) { console.error(err); }
+    try { await supabase.from("access_codes").update({ is_active: !currentStatus }).eq("id", id); await syncPipeline(); } catch(err) {}
     setSaving(false);
   };
 
   const generateDailyBriefs = () => {
     setWaBriefs({
-      Héctor: "🔥 *Versiona Daily Brief · Héctor*\n• Terminar el 4to video para pauta de contenido 🎬.\n• Modificar flyers promocionales.",
-      Arturo: "📚 *Versiona Daily Brief · Arturo*\n• Cerrar propuesta de sesión en locación 🚀.\n• Revisar reportes de pauta en Meta Ads.",
+      Héctor: "🔥 *Versiona Daily Brief · Héctor*\n• Grabar contenido para Reels 🎬.\n• Apoyar en sesión de fotos de producto.",
+      Arturo: "📚 *Versiona Daily Brief · Arturo*\n• Cerrar propuesta y estrategia comercial 🚀.\n• Revisar reportes de pauta en Meta Ads.",
       Diego: "🧠 *Versiona Daily Brief · Diego*\n• Monitorear despliegue de Dashboard OS.\n• Revisar mesa de control del equipo."
     });
   };
@@ -515,7 +539,6 @@ export default function App() {
   const timeStr = now.toLocaleDateString("es-MX", { weekday:"short", day:"2-digit", month:"short" }) + " · " + now.toLocaleTimeString("es-MX", { hour:"2-digit", minute:"2-digit" }); 
   const inpStyle = { background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, fontSize:12, padding:"9px 12px", outline:"none" };
 
-  // CALCULO COMPACTO DE LA GRAFICA DE PASTEL POR COLOR SIN TEXTO EXTERNO
   const pieGradientParts = totalActiveTasksGlobal === 0 
     ? "#4ade80 0% 100%" 
     : teamMembers.map((m) => {
@@ -530,7 +553,7 @@ export default function App() {
         return acc;
       }, { strings: [], currSum: 0 }).strings.join(", ");
 
-  // ── PANTALLA LOGIN SEMILLA RESTAURADA AL MODELO PREMIUM ORIGINAL ──
+  // ── PANTALLA LOGIN PREMIUM ──
   if (!session.loggedIn) {
     const currentDate = now.toLocaleDateString("es-MX", { weekday:"long", day:"2-digit", month:"long", year:"numeric" });
     return (
@@ -554,9 +577,7 @@ export default function App() {
                 {showPass ? "🙈" : "👁"}
               </button>
             </div>
-            
             {loginError && <div style={{ fontSize:11, color:"#f87171", fontWeight:700, letterSpacing:"1px", textAlign:"center", marginTop:"4px" }}>CÓDIGO INVÁLIDO</div>}
-            
             <button type="submit" style={{ width:"100%", background:"#eef0f3", color:"#080a0e", border:"none", borderRadius:8, padding:"14px", fontSize:12, fontWeight:700, cursor:"pointer", letterSpacing:"1px", textTransform:"uppercase", transition:"all 0.15s ease", marginTop:"6px" }}>Acceder al Flujo</button>
           </form>
           
@@ -568,9 +589,10 @@ export default function App() {
     );
   }
 
+  if (!loaded) return <div style={{ height:"100vh", background:thm.bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16, fontFamily:font }}><div className="font-serif" style={{ fontSize:22, color:thm.text }}>VERSIONA<span style={{ color:"#F47920" }}>O</span><span style={{ color:"#29ABE2", fontStyle:"italic" }}>S</span></div><div className="pulse" style={{ fontSize:11, color:thm.textMuted, letterSpacing:2 }}>SINCRONIZANDO MATRIZ</div></div>;
+
   return (
     <div style={{ minHeight:"100vh", background:thm.bg, color:thm.text, display:"flex", flexDirection:"column", fontFamily:font }}>
-      {/* ── HEADER MASTER NAV ── */}
       <div style={{ borderBottom:`1px solid ${thm.border}`, padding:"0 24px", display:"flex", alignItems:"center", height:60, flexShrink:0, background:thm.navBg, gap:16 }}>
         <div className="font-serif" style={{ fontSize:19, letterSpacing:.5, flexShrink:0 }}>VERSIONA<span style={{ color:"#F47920" }}>O</span><span style={{ color:"#29ABE2", fontStyle:"italic" }}>S</span></div>
         <div style={{ display:"flex", gap:3, background:thm.surfaceTop, borderRadius:8, padding:3, overflowX:"auto", flex:1, maxWidth:850 }}>
@@ -581,8 +603,6 @@ export default function App() {
           {navBtn("blocked", `Pausas (${allBlock})`)}
           {navBtn("feedback", "⚙ Soporte")}
           {isAdmin && navBtn("completadas", "✓ Análisis Semanal")}
-          
-          {/* CAMBIO 2: SÓLO EL ROLES 'superadmin' PUEDEN VER E INGRESAR A CONFIGURACIONES */}
           {isSuperAdmin && navBtn("admin-utils", "Configuraciones",  "#F47920")}
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:12, marginLeft:"auto", flexShrink:0 }}>
@@ -597,7 +617,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* KPIs STRIP */}
       <div style={{ display:"flex", borderBottom:`1px solid ${thm.border}`, flexShrink:0, background:thm.navBg }}>
         {[{ l:"Activas", v:allPend, c:thm.text }, { l:"Bloqueadas", v:allBlock, c:allBlock>0?"#f87171":thm.textMuted }, { l:"Vencidas", v:allOver, c:allOver>0?"#facc15":thm.textMuted }, { l:"Listas", v:allDone.length, c:"#4ade80" }].map((k,i) => (
           <div key={i} style={{ flex:1, padding:"10px 8px", textAlign:"center", borderRight:i<3?`1px solid ${thm.border}`:"none" }}>
@@ -609,7 +628,6 @@ export default function App() {
 
       <div style={{ flex:1, display:"flex", overflow:"hidden" }}>
         
-        {/* ══ DASHBOARD PRINCIPAL ══ */}
         {view === "dashboard" && (
           <>
             <div style={{ width:240, borderRight:`1px solid ${thm.border}`, background:thm.surface, overflowY:"auto", flexShrink:0, display:"flex", flexDirection:"column" }}>
@@ -703,18 +721,17 @@ export default function App() {
           </>
         )}
 
-        {/* ══ VIEW: CATALOGO DE SERVICIOS POR TIPO ══ */}
         {view === "servicios" && isAdmin && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg, maxWidth:850, margin:"0 auto", width:"100%" }}>
             <h2 className="font-serif" style={{ fontSize:30, marginBottom:6 }}>📋 Servicios</h2>
             <p style={{ fontSize:13, color:thm.textSub, marginBottom:28 }}>Mapeo de entregables activos y sesiones estructuradas.</p>
-            {CREATIVE_SERVICES_CATALOG.every(srv => clients.flatMap(c => (c.tasks || []).filter(t => t.service_id === srv.id && t.state !== "done")).length === 0) ? (
+            {CREATIVE_SERVICES_CATALOG.every(srv => clients.flatMap(c => (c.tasks || []).filter(t => (t.service_id === srv.id || (srv.id === "srv_photo" && t.category === "📚")) && t.state !== "done" && t.state !== "archived")).length === 0) ? (
                <div style={{ textAlign:"center", padding:48, color:thm.textMuted, background:thm.surface, borderRadius:14, border:`1px dashed ${thm.border}` }}>No hay entregables mapeados.</div>
             ) : (
                <div style={{ display:"flex", flexDirection:"column", gap:24 }}>
                   {CREATIVE_SERVICES_CATALOG.map(srv => {
                      const tasksForService = clients.flatMap(c => 
-                        (c.tasks || []).filter(t => t.service_id === srv.id && t.state !== "done" && t.state !== "archived").map(t => ({ ...t, cname: c.name }))
+                        (c.tasks || []).filter(t => (t.service_id === srv.id || (srv.id === "srv_photo" && t.category === "📚")) && t.state !== "done" && t.state !== "archived").map(t => ({ ...t, cname: c.name }))
                      );
                      if (tasksForService.length === 0) return null;
                      return (
@@ -746,7 +763,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ══ VIEW: FEEDBACK LOOP / SOPORTE INTELLIGENT BUZÓN ══ */}
         {view === "feedback" && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg, maxWidth:isAdmin ? 800 : 600, margin:"0 auto", width:"100%" }}>
             {isAdmin ? (
@@ -760,14 +776,15 @@ export default function App() {
                         {feedbackItems.map(fb => {
                           const isBug = fb.message.includes("[Soporte Técnico]");
                           const isClient = fb.message.includes("[Cliente]");
-                          const fbColor = isBug ? "#f87171" : isClient ? "#38bdf8" : "#F47920";
+                          const isAudit = fb.message.includes("[Auditoría Semanal]");
+                          const fbColor = isAudit ? "#4ade80" : isBug ? "#f87171" : isClient ? "#38bdf8" : "#F47920";
                           return (
                              <div key={fb.id} style={{ background:thm.surface, padding:20, borderRadius:12, border:`1px solid ${thm.border}`, borderLeft:`4px solid ${fbColor}` }}>
                                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
                                    <span style={{ fontSize:12, fontWeight:700, color:fbColor }}>Remitente: {fb.user_name || "Mesa de Control"}</span>
                                    <span style={{ fontSize:10, color:thm.textMuted }}>{fb.created_at ? new Date(fb.created_at).toLocaleDateString("es-MX") : ""}</span>
                                 </div>
-                                <div style={{ fontSize:13, color:thm.text, lineHeight:1.6 }}>{fb.message}</div>
+                                <pre style={{ margin:0, fontSize:13, color:thm.text, lineHeight:1.6, fontFamily:font, whiteSpace:"pre-wrap" }}>{fb.message}</pre>
                              </div>
                           );
                         })}
@@ -788,7 +805,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ══ VIEW: PAUSAS ACTIVAS ══ */}
         {view === "blocked" && (
           <div style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg, display:"flex", flexDirection:"column", gap:8 }}>
             <h2 className="font-serif" style={{ fontSize:28, color:"#f87171", margin:"0 0 12px 0" }}>⊘ Contenidos Pausados</h2>
@@ -804,7 +820,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ══ VIEW: EQUIPO (GRÁFICA DE PASTEL DINÁMICA POR COLOR) ══ */}
         {(view === "team" || view === "equipo") && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"22px", background:thm.bg }}>
             <div style={{ display: "flex", justifyContent: "center", marginBottom: 36 }}>
@@ -845,7 +860,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ══ VIEW: COMPLETADAS / ANÁLISIS SEMANAL (EXCLUSIVO ADMIN) ══ */}
         {view === "completadas" && isAdmin && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg, width:"100%" }}>
             <h2 className="font-serif" style={{ fontSize:32, margin:"0 0 4px 0" }}>📊 Análisis Semanal</h2>
@@ -863,11 +877,15 @@ export default function App() {
 
               <WeeklyChart allDone={allDone} />
 
+              {/* SEMÁFORO DE AUDITORÍA (CONECTADO AL BUZÓN Y GUARDABLE) */}
               <div style={{ background:thm.surface, borderRadius:14, padding:24, border:`1px solid ${thm.border}` }}>
-                <div style={{ fontSize:10, color:thm.textMuted, letterSpacing:1.5, textTransform:"uppercase", marginBottom:16, fontWeight:700 }}>Semáforo de Intención Semanal</div>
-                <div className="semaforo-win" style={{ marginBottom:12 }}><span style={{ fontSize:24 }}>🏆</span><div style={{ flex:1 }}><div style={{ fontSize:11, color:"#4ade80", fontWeight:700 }}>LOGRO DE IMPACTO SEMANAL</div><textarea rows={2} placeholder="Ej: Logramos liberar la campaña." style={{ width:"100%", background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, padding:10, marginTop:6 }}/></div></div>
-                <div className="semaforo-warn" style={{ marginBottom:12 }}><span style={{ fontSize:24 }}>🚀</span><div style={{ flex:1 }}><div style={{ fontSize:11, color:"#facc15", fontWeight:700 }}>AVANCE DESTACADO DE CONTENIDO</div><textarea rows={2} placeholder="Ej: Destrabamos las pautas." style={{ width:"100%", background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, padding:10, marginTop:6 }}/></div></div>
-                <div className="semaforo-risk"><span style={{ fontSize:24 }}>⚠️</span><div style={{ flex:1 }}><div style={{ fontSize:11, color:"#f87171", fontWeight:700 }}>RIESGO / CUELLO DE BOTELLA CRÍTICO</div><textarea rows={2} placeholder="Ej: Falta confirmación de accesos." style={{ width:"100%", background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, padding:10, marginTop:6 }}/></div></div>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+                  <div style={{ fontSize:10, color:thm.textMuted, letterSpacing:1.5, textTransform:"uppercase", fontWeight:700 }}>Semáforo de Intención Semanal</div>
+                  <button onClick={handleSaveAudit} disabled={saving} style={{ background:thm.accentBg, color:thm.accentText, border:"none", padding:"6px 14px", borderRadius:6, fontSize:10, fontWeight:700, cursor:"pointer" }}>Guardar Auditoría Definitiva</button>
+                </div>
+                <div className="semaforo-win" style={{ marginBottom:12 }}><span style={{ fontSize:24 }}>🏆</span><div style={{ flex:1 }}><div style={{ fontSize:11, color:"#4ade80", fontWeight:700 }}>LOGRO DE IMPACTO SEMANAL</div><textarea value={auditWin} onChange={e=>setAuditWin(e.target.value)} rows={2} placeholder="Ej: Logramos liberar la campaña." style={{ width:"100%", background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, padding:10, marginTop:6 }}/></div></div>
+                <div className="semaforo-warn" style={{ marginBottom:12 }}><span style={{ fontSize:24 }}>🚀</span><div style={{ flex:1 }}><div style={{ fontSize:11, color:"#facc15", fontWeight:700 }}>AVANCE DESTACADO DE CONTENIDO</div><textarea value={auditWarn} onChange={e=>setAuditWarn(e.target.value)} rows={2} placeholder="Ej: Destrabamos las pautas." style={{ width:"100%", background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, padding:10, marginTop:6 }}/></div></div>
+                <div className="semaforo-risk"><span style={{ fontSize:24 }}>⚠️</span><div style={{ flex:1 }}><div style={{ fontSize:11, color:"#f87171", fontWeight:700 }}>RIESGO / CUELLO DE BOTELLA CRÍTICO</div><textarea value={auditRisk} onChange={e=>setAuditRisk(e.target.value)} rows={2} placeholder="Ej: Falta confirmación de accesos." style={{ width:"100%", background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, padding:10, marginTop:6 }}/></div></div>
               </div>
 
               <div style={{ background:thm.surface, borderRadius:14, padding:24, border:`1px solid ${thm.border}` }}>
@@ -930,7 +948,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ══ VIEW: CONFIGURACIONES (MÓDULOS ADMIN CONTROL PANELS) - ACCESO RESTRINGIDO A SUPERADMIN ══ */}
+        {/* ══ VIEW: CONFIGURACIONES (SOLO SUPERADMIN) ══ */}
         {view === "admin-utils" && isSuperAdmin && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg }}>
             <h2 className="font-serif" style={{ margin:"0 0 8px 0", fontSize:30 }}>⚙ Configuración del Flujo Matrix</h2>
