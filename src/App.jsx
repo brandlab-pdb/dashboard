@@ -122,7 +122,6 @@ function TaskRow({ task, cid, teamMembers, activeProjectsList, onCycleState, onC
           {days>0 && <span style={{ fontSize:9, color:days>=3?"#f87171":"#facc15", fontWeight:700 }}>⊘ Pausado {days}d</span>}
           {revOver && <span style={{ fontSize:9, color:"#f87171", fontWeight:700 }}>⚠ {task.revisions} rev</span>}
           
-          {/* RE-ENRUTADOR DE PROYECTOS DISCRETO PARA EL ADMIN */}
           {isAdmin && !isDone && (
             <select value={cid} onChange={e => onChangeTaskProject(task.id, e.target.value)} style={{ background: thm.surfaceHigh, border: `1px solid ${thm.border}`, color: thm.textSub, fontSize: 10, padding: "2px 6px", borderRadius: 4, cursor: "pointer" }}>
               {activeProjectsList.map(p => <option key={p.id} value={p.id}>→ {p.name}</option>)}
@@ -138,7 +137,7 @@ function TaskRow({ task, cid, teamMembers, activeProjectsList, onCycleState, onC
   );
 }
 
-// ── COMPONENTE MAESTRO PRINCIPAL ───────────────────────────────────────────
+// ── MAIN APP ENGINE ────────────────────────────────────────────────────────
 export default function App() {
   const [session,       setSession]       = useState({ loggedIn:false, role:null, user:null });
   const [accessCode,    setAccessCode]    = useState("");
@@ -157,7 +156,6 @@ export default function App() {
   const [newTask,       setNewTask]       = useState({ text:"", whoId:"", priority:"medium", category:"🔥", projectId:null, is_service:false, service_id:"" });
   const [orderCriteria, setOrderCriteria] = useState("default");
   
-  // Estados de Configuración Avanzada
   const [showNewProject, setShowNewProject] = useState(false);
   const [newProjectData, setNewProjectData] = useState({ name:"", type:"membresía" });
   const [newMemberName,  setNewMemberName]  = useState("");
@@ -168,7 +166,6 @@ export default function App() {
   const [projectFilterTab, setProjectFilterTab] = useState("active");
   const [securityLogs,   setSecurityLogs]   = useState([]);
 
-  // Estados del Gestor de Contraseñas / Códigos Supabase
   const [dbAccessCodes,  setDbAccessCodes]  = useState([]);
   const [newCodeForm,    setNewCodeForm]    = useState({ code:"", user_name:"", role:"team" });
   const [showNewCode,    setShowNewCode]    = useState(false);
@@ -187,7 +184,7 @@ export default function App() {
         match = { role: dbCode.role, user: dbCode.user_name };
         await supabase.from("access_codes").update({ last_login: new Date().toISOString() }).eq("code", code);
       }
-    } catch (err) { console.warn("Fallback estático."); }
+    } catch (err) { console.warn("Fallback."); }
 
     if (!match) match = ACCESS_CODES_STATIC[code];
     if (match) {
@@ -373,10 +370,8 @@ export default function App() {
     setSaving(false);
   };
 
-  // BUZÓN DE FRICTION INTELIGENTE (CLASIFICACIÓN DETERMINISTA AUTOMÁTICA)
   const handleFeedbackSubmit = async (e) => {
     e.preventDefault(); if(!feedbackMsg.trim()) return; setSaving(true);
-    
     const msgLower = feedbackMsg.toLowerCase();
     let computedType = "Operación";
     if (msgLower.includes("falla") || msgLower.includes("bug") || msgLower.includes("lento") || msgLower.includes("error") || msgLower.includes("no carga")) {
@@ -384,7 +379,6 @@ export default function App() {
     } else if (msgLower.includes("cliente") || msgLower.includes("marca") || msgLower.includes("brief") || msgLower.includes("cambio")) {
       computedType = "Cliente";
     }
-
     try { 
       await supabase.from("feedback_items").insert([{ user_name: session.user, message: `[${computedType}] ${feedbackMsg}`, status: "open" }]); 
       setFeedbackMsg(""); setFeedbackSuccess(true); setTimeout(() => setFeedbackSuccess(false), 3000); 
@@ -454,12 +448,7 @@ export default function App() {
     if (!newCodeForm.code.trim() || !newCodeForm.user_name.trim()) return;
     setSaving(true);
     try {
-      await supabase.from("access_codes").insert([{
-        code: newCodeForm.code.trim().toLowerCase(),
-        user_name: newCodeForm.user_name.trim(),
-        role: newCodeForm.role,
-        is_active: true
-      }]);
+      await supabase.from("access_codes").insert([{ code: newCodeForm.code.trim().toLowerCase(), user_name: newCodeForm.user_name.trim(), role: newCodeForm.role, is_active: true }]);
       setNewCodeForm({ code:"", user_name:"", role:"team" }); setShowNewCode(false);
       await syncPipeline();
     } catch(err) { console.error(err); }
@@ -475,27 +464,7 @@ export default function App() {
     setSaving(false);
   };
 
-  const generateDailyBriefs = () => {
-    setWaBriefs({
-      Héctor: "🔥 *Versiona Daily Brief · Héctor*\n• Terminar el 4to video para pauta de contenido 🎬.\n• Modificar flyers promocionales.",
-      Arturo: "📚 *Versiona Daily Brief · Arturo*\n• Cerrar propuesta de sesión en locación 🚀.\n• Agendar pauta estratégica semanal.",
-      Diego: "🧠 *Versiona Daily Brief · Diego*\n• Validar inyección del re-enrutador de marcas.\n• Coordinar mesa de control del viernes."
-    });
-  };
-
   // ── DATA ENGINE DERIVADA ──
-  const isAdmin         = session.role === "admin" || session.role === "superadmin";
-  const isSuperAdmin    = session.role === "superadmin";
-  const adminProjects   = clients.filter(c => (c.type==="admin" || c.name.toLowerCase().includes("admin")) && c.dbStatus !== "archived");
-  const regularProjects = clients.filter(c => !adminProjects.some(a=>a.id===c.id) && c.dbStatus !== "archived");
-  const activeProjects  = regularProjects.filter(c => c.tasks && c.tasks.some(t => t.state !== "done" && t.state !== "archived"));
-  const allActiveProjectsList = clients.filter(c => c.dbStatus !== "archived");
-  
-  const sortedActive = sortProjects(activeProjects);
-  const client       = clients.find(c=>c.id===activeClient) || sortedActive[0] || adminProjects[0];
-  const blockedAll   = clients.flatMap(c=>c.tasks ? c.tasks.filter(t=>t.state==="blocked").map(t=>({...t,cname:c.name,cid:c.id})) : []);
-  
- // ── DATA ENGINE DERIVADA ──
   const isAdmin         = session.role === "admin" || session.role === "superadmin";
   const isSuperAdmin    = session.role === "superadmin";
   const adminProjects   = clients.filter(c => (c.type==="admin" || c.name.toLowerCase().includes("admin")) && c.dbStatus !== "archived");
@@ -525,45 +494,19 @@ export default function App() {
   const allBlock     = blockedAll.length;
   const allOver      = clients.reduce((acc, c) => acc + (c.tasks ? c.tasks.filter(t => { const d = deadlineInfo(t.deadline); return d && d.status === "due" && t.state !== "done" && t.state !== "archived"; }).length : 0), 0);
 
-  const navBtn = (id, label, accentColor) => ( 
-    <button className="nav-btn" key={id} onClick={()=>setView(id)} style={{ background:view===id?(accentColor||thm.accentBg):"transparent", color:view===id?(accentColor?"#080a0e":thm.accentText):thm.textSub }}>
-        {label}
-    </button> 
+  const navBtn = (id, label, accentColor) => (
+    <button className="nav-btn" key={id} onClick={()=>setView(id)} style={{ background:view===id?(accentColor||thm.accentBg):"transparent", color:view===id?(accentColor?"#080a0e":thm.accentText):thm.textSub }}>{label}</button>
   );
 
   const rowProps = { teamMembers, activeProjectsList: allActiveProjectsList, onCycleState: cycleState, onCycleWho: cycleWho, onCyclePrio: cyclePrio, onCompleteTask: completeTask, onRestoreTask: restoreTask, onDeleteTask: deleteTask, onArchiveTask: archiveTask, onChangeTaskProject: changeTaskProject, onSetDl: setDl, editingDl, setEditingDl, isAdmin };
-  
   const totalActiveTasksGlobal = clients.flatMap(c=>c.tasks ? c.tasks.filter(t=>t.state!=="done" && t.state!=="archived") : []).length;
   const timeStr = now.toLocaleDateString("es-MX", { weekday:"short", day:"2-digit", month:"short" }) + " · " + now.toLocaleTimeString("es-MX", { hour:"2-digit", minute:"2-digit" }); 
   const inpStyle = { background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, fontSize:12, padding:"9px 12px", outline:"none" };
-  // ── SCREEN LOGIN ──
-  if (!session.loggedIn) {
-    const currentDate = now.toLocaleDateString("es-MX", { weekday:"long", day:"2-digit", month:"long", year:"numeric" });
-    return (
-      <div style={{ height:"100vh", background:thm.bg, display:"flex", alignItems:"center", justifyContent:"center", padding:20, fontFamily:font }}>
-        <form onSubmit={handleLogin} className="fade-up" style={{ background:thm.surface, padding:40, borderRadius:16, border:`1px solid ${thm.border}`, width:"100%", maxWidth:360, textAlign:"center" }}>
-          <div className="font-serif" style={{ fontSize:26, marginBottom:6, color:"#eef0f3" }}>VERSIONA<span style={{ color:"#F47920" }}>O</span><span style={{ color:"#29ABE2", fontStyle:"italic" }}>S</span></div>
-          <div style={{ fontSize:10, color:thm.textMuted, letterSpacing:2, marginBottom:6, textTransform:"uppercase" }}>Workspace de Producción</div>
-          <div style={{ fontSize:11, color:thm.textMuted, marginBottom:32, textTransform:"capitalize" }}>{currentDate}</div>
-          <div style={{ position:"relative", marginBottom:10 }}>
-            <input type={showPass ? "text" : "password"} value={accessCode} onChange={e => setAccessCode(e.target.value)} placeholder="Código de acceso al equipo" autoFocus style={{ width:"100%", background:thm.inputBg, border:`1px solid ${loginError?"#f87171":thm.border}`, borderRadius:8, padding:"12px 40px 12px 12px", color:thm.text, fontSize:14, outline:"none", textAlign:"center", letterSpacing:2 }}/>
-            <button type="button" className="eye-btn" onClick={() => setShowPass(p=>!p)}>{showPass ? "🙈" : "👁"}</button>
-          </div>
-          {loginError && <div style={{ fontSize:11, color:"#f87171", marginBottom:12, fontWeight:700 }}>CÓDIGO INVÁLIDO</div>}
-          <button type="submit" style={{ width:"100%", background:thm.text, color:thm.bg, border:"none", borderRadius:8, padding:12, fontSize:12, fontWeight:700, cursor:"pointer", letterSpacing:1, textTransform:"uppercase" }}>Acceder al Flujo</button>
-          <div style={{ marginTop:20, fontSize:10, color:thm.textMuted }}>
-            ¿Sin código? → <a href="mailto:contacto.diegobeltran@gmail.com?subject=Acceso Versiona OS" style={{ color:"#F47920", textDecoration:"none", fontWeight:700 }}>Solicitar al admin</a>
-          </div>
-        </form>
-      </div>
-    );
-  }
 
-  if (!loaded) return <div style={{ height:"100vh", background:thm.bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16, fontFamily:font }}><div className="font-serif" style={{ fontSize:22, color:thm.text }}>VERSIONA<span style={{ color:"#F47920" }}>O</span><span style={{ color:"#29ABE2", fontStyle:"italic" }}>S</span></div><div className="pulse" style={{ fontSize:11, color:thm.textMuted, letterSpacing:2 }}>SINCRONIZANDO VECTORES</div></div>;
-
+  // ── SCREEN RENDER ──
   return (
     <div style={{ minHeight:"100vh", background:thm.bg, color:thm.text, display:"flex", flexDirection:"column", fontFamily:font }}>
-      {/* ── HEADER MASTER NAV ── */}
+      {/* HEADER MASTER NAV */}
       <div style={{ borderBottom:`1px solid ${thm.border}`, padding:"0 24px", display:"flex", alignItems:"center", height:60, flexShrink:0, background:thm.navBg, gap:16 }}>
         <div className="font-serif" style={{ fontSize:19, letterSpacing:.5, flexShrink:0 }}>VERSIONA<span style={{ color:"#F47920" }}>O</span><span style={{ color:"#29ABE2", fontStyle:"italic" }}>S</span></div>
         <div style={{ display:"flex", gap:3, background:thm.surfaceTop, borderRadius:8, padding:3, overflowX:"auto", flex:1, maxWidth:850 }}>
@@ -581,14 +524,14 @@ export default function App() {
             <div className="live-dot" />
             <div style={{ textAlign:"right" }}>
               <div style={{ fontSize:12, fontWeight:700, color: session.user === "Diego" ? "#F47920" : "#29ABE2" }}>{session.user} <span style={{ fontSize:9, color:thm.textMuted, fontWeight:400, background:thm.surfaceTop, padding:"2px 6px", borderRadius:4 }}>{session.role}</span></div>
-              <div style={{ fontSize:9, color:thm.textMuted }}>{timeStr}</div>
+              <div style={{ fontSize:9, color:thm.textMuted }}>{saving ? <span style={{ color:"#facc15" }}>guardando...</span> : <span>{timeStr}</span>}</div>
             </div>
           </div>
           <button onClick={handleLogout} style={{ background:"none", border:"none", color:"#f87171", cursor:"pointer", fontSize:11, fontWeight:700 }}>Salir →</button>
         </div>
       </div>
 
-      {/* ── KPIs STRIP ── */}
+      {/* KPIs STRIP */}
       <div style={{ display:"flex", borderBottom:`1px solid ${thm.border}`, flexShrink:0, background:thm.navBg }}>
         {[{ l:"Activas", v:allPend, c:thm.text }, { l:"Bloqueadas", v:allBlock, c:allBlock>0?"#f87171":thm.textMuted }, { l:"Vencidas", v:allOver, c:allOver>0?"#facc15":thm.textMuted }, { l:"Listas", v:allDone.length, c:"#4ade80" }].map((k,i) => (
           <div key={i} style={{ flex:1, padding:"10px 8px", textAlign:"center", borderRight:i<3?`1px solid ${thm.border}`:"none" }}>
@@ -695,12 +638,12 @@ export default function App() {
           </>
         )}
 
-        {/* ══ VIEW: CATALOGO DE SERVICIOS POR ENFOCADOS POR TIPO ══ */}
+        {/* ══ VIEW: CATALOGO DE SERVICIOS POR TIPO ══ */}
         {view === "servicios" && isAdmin && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg, maxWidth:850, margin:"0 auto", width:"100%" }}>
             <h2 className="font-serif" style={{ fontSize:30, marginBottom:6 }}>📋 Servicios</h2>
-            <p style={{ fontSize:13, color:thm.textSub, marginBottom:28 }}>Mapeo de entregables y sesiones de trabajo profundo activos agrupados por entregable.</p>
-            {CREATIVE_SERVICES_CATALOG.every(srv => clients.flatMap(c => (c.tasks || []).filter(t => (t.service_id === srv.id || (srv.id === "srv_reel" && t.category === "📚")) && t.state !== "done")).length === 0) ? (
+            <p style={{ fontSize:13, color:thm.textSub, marginBottom:28 }}>Mapeo de entregables activos y sesiones estructuradas.</p>
+            {CREATIVE_SERVICES_CATALOG.every(srv => clients.flatMap(c => (c.tasks || []).filter(t => (t.service_id === srv.id || (srv.id === "srv_photo" && t.category === "📚")) && t.state !== "done")).length === 0) ? (
                <div style={{ textAlign:"center", padding:48, color:thm.textMuted, background:thm.surface, borderRadius:14, border:`1px dashed ${thm.border}` }}>No hay entregables o pautas activas mapeadas.</div>
             ) : (
                <div style={{ display:"flex", flexDirection:"column", gap:24 }}>
@@ -800,7 +743,7 @@ export default function App() {
         {(view === "team" || view === "equipo") && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"22px", background:thm.bg }}>
             
-            {/* ── GRÁFICA DE PASTEL INTERACTIVA SEGMENTADA POR COLOR (SIN TEXTOS MOLESTOS) ── */}
+            {/* GRÁFICA DE PASTEL INTERACTIVA SEGMENTADA POR COLOR (SIN TEXTOS MOLESTOS) */}
             <div style={{ display: "flex", justifyContent: "center", marginBottom: 36 }}>
                <div style={{
                  width: 142, height: 142, borderRadius: "50%", 
@@ -808,7 +751,7 @@ export default function App() {
                    teamMembers.map((m, idx) => {
                      const cnt = clients.flatMap(c => (c.tasks || []).filter(t => t.assigned_to === m.id && t.state !== "done" && t.state !== "archived")).length;
                      return { color: getMemberColor(m.name), weight: (cnt / (totalActiveTasksGlobal || 1)) * 100 };
-                   }).reduce((acc, curr, i, arr) => {
+                   }).reduce((acc, curr) => {
                      if (curr.weight === 0) return acc;
                      const start = acc.currSum; acc.currSum += curr.weight;
                      acc.strings.push(`${curr.color} ${start}% ${acc.currSum}%`);
@@ -942,7 +885,7 @@ export default function App() {
         {view === "admin-utils" && isAdmin && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg }}>
             <h2 className="font-serif" style={{ margin:"0 0 8px 0", fontSize:30 }}>⚙ Configuración del Flujo Matrix</h2>
-            <p style={{ fontSize:13, color:thm.textSub, marginBottom:28 }}>Panel maestro para el control de marcas, integrantes, contraseñas de acceso y auditoría en tiempo real.</p>
+            <p style={{ fontSize:13, color:thm.textSub, marginBottom:28 }}>Panel maestro administrativo central.</p>
 
             {/* INTEGRANTES */}
             <div style={{ background:thm.surface, borderRadius:14, border:`1px solid ${thm.border}`, marginBottom:24, padding:20 }}>
@@ -989,7 +932,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* MAESTRO VALIDATOR DE CONTRASEÑAS DIRECTO EN SUPABASE */}
+            {/* BOVEDA CODES MASTER ACCESOS */}
             <div style={{ background:thm.surface, borderRadius:14, border:`1px solid ${thm.border}`, marginBottom:24, padding:20 }}>
                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
                   <div style={{ fontSize:14, fontWeight:700 }}>3. Bóveda de Códigos de Acceso (Seguridad)</div>
@@ -1021,8 +964,8 @@ export default function App() {
                </div>
             </div>
 
-            {/* AUDITORÍA EN TIEMPO REAL DE ACCESOS (ÚLTIMOS ACCESOS) */}
-            <div style={{ background:thm.surface, borderRadius:14, border:`1px solid ${thm.border}`, padding:20 }}>
+            {/* AUDITORÍA DE ACCESOS */}
+            <div style={{ background:thm.surface, borderRadius:14, padding:20 }}>
                <div style={{ fontSize:14, fontWeight:700, marginBottom:12 }}>4. Registro de Auditoría de Puertos (`security_logs`)</div>
                <div style={{ maxHeight:200, overflowY:"auto", display:"flex", flexDirection:"column", gap:6 }}>
                   {securityLogs.map(log => (
