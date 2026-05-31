@@ -122,7 +122,6 @@ function TaskRow({ task, cid, teamMembers, activeProjectsList, onCycleState, onC
           {days>0 && <span style={{ fontSize:9, color:days>=3?"#f87171":"#facc15", fontWeight:700 }}>⊘ Pausado {days}d</span>}
           {revOver && <span style={{ fontSize:9, color:"#f87171", fontWeight:700 }}>⚠ {task.revisions} rev</span>}
           
-          {/* SELECTOR DISCRETO PARA ADMINS: RE-ENRUTAR ACTIVIDAD A OTRA MARCA */}
           {isAdmin && !isDone && (
             <select value={cid} onChange={e => onChangeTaskProject(task.id, e.target.value)} style={{ background: thm.surfaceHigh, border: `1px solid ${thm.border}`, color: thm.textSub, fontSize: 10, padding: "2px 6px", borderRadius: 4, cursor: "pointer" }}>
               {activeProjectsList.map(p => <option key={p.id} value={p.id}>→ {p.name}</option>)}
@@ -131,8 +130,8 @@ function TaskRow({ task, cid, teamMembers, activeProjectsList, onCycleState, onC
         </div>
       </div>
       <div style={{ display:"flex", alignItems:"center", gap:6, marginLeft:"auto", flexShrink:0 }}>
-        <button className="btn-action" onClick={() => onArchiveTask(task.id, task.text)} style={{ background:"none", border:`1px solid ${thm.border}`, borderRadius:6, padding:"4px 8px", cursor:"pointer", fontSize:11, opacity:0.6 }} title="Archivar Actividad">📥</button>
-        <button className="btn-action" onClick={() => onDeleteTask(task.id, task.text)} style={{ fontSize:10, color:thm.textFaint, background:"none", border:`1px solid ${thm.borderLight}`, borderRadius:5, padding:"4px 8px", cursor:"pointer" }}>✕</button>
+        <button className="btn-action" onClick={(e) => { e.stopPropagation(); onArchiveTask(task.id, task.text); }} style={{ background:"none", border:`1px solid ${thm.border}`, borderRadius:6, padding:"4px 8px", cursor:"pointer", fontSize:11, opacity:0.6 }} title="Archivar Actividad">📥</button>
+        <button className="btn-action" onClick={(e) => { e.stopPropagation(); onDeleteTask(task.id, task.text); }} style={{ fontSize:10, color:thm.textFaint, background:"none", border:`1px solid ${thm.borderLight}`, borderRadius:5, padding:"4px 8px", cursor:"pointer" }}>✕</button>
       </div>
     </div>
   );
@@ -185,7 +184,7 @@ export default function App() {
         match = { role: dbCode.role, user: dbCode.user_name };
         await supabase.from("access_codes").update({ last_login: new Date().toISOString() }).eq("code", code);
       }
-    } catch (err) { console.warn("Fallback local de login."); }
+    } catch (err) { console.warn("Fallback."); }
 
     if (!match) match = ACCESS_CODES_STATIC[code];
     if (match) {
@@ -211,17 +210,17 @@ export default function App() {
          try {
             const { data: dbFeedback } = await supabase.from("feedback_items").select("*").order("created_at", { ascending: false });
             setFeedbackItems(dbFeedback || []);
-         } catch(e) { console.warn("Módulo de feedback desconectado temporalmente"); }
+         } catch(e) { console.warn("Error leyendo feedback_items"); }
 
          try {
             const { data: dbLogs } = await supabase.from("security_logs").select("user_name, action_type, created_at").order("created_at", { ascending: false }).limit(20);
             setSecurityLogs(dbLogs || []);
-         } catch(e) { console.warn("Módulo de auditoría desconectado temporalmente"); }
+         } catch(e) { console.warn("Error leyendo logs"); }
 
          try {
             const { data: dbCodes } = await supabase.from("access_codes").select("*").order("created_at", { ascending: false });
             setDbAccessCodes(dbCodes || []);
-         } catch(acErr) { console.warn("Bóveda de claves en fallback estático"); }
+         } catch(acErr) { console.warn("Error leyendo access_codes"); }
       }
       
       setTeamMembers(dbMembers || []);
@@ -253,23 +252,22 @@ export default function App() {
 
   useEffect(() => { if (session.loggedIn) syncPipeline(); }, [session.loggedIn, syncPipeline]);
 
-  // ── PUERTA DE VALIDACIÓN PARA ARCHIVAR/ELIMINAR (GATING) ──
   const verifyGatedAction = async (actionLabel, taskText) => {
     if (session.role === "admin" || session.role === "superadmin") return true;
-    const code = prompt(`Mesa de Control: Introduce tu código de Administrador para ${actionLabel} la actividad "${taskText}":`);
+    const code = prompt(`Acción Protegida: Introduce el código de autorización de Administrador para ${actionLabel} "${taskText}":`);
     if (!code) return false;
     const match = ACCESS_CODES_STATIC[code.trim().toLowerCase()];
     if (match && (match.role === "admin" || match.role === "superadmin")) {
       try {
         await supabase.from("feedback_items").insert([{
           user_name: session.user || "Equipo",
-          message: `[Acción Protegida] Se autorizó por código la acción de [${actionLabel}] en la actividad: "${taskText}".`,
+          message: `[Código de Seguridad] Acción de [${actionLabel}] autorizada por código en actividad: "${taskText}".`,
           status: "open"
         }]);
-      } catch (err) {}
+      } catch (err) { console.warn("Error notificando"); }
       return true;
     }
-    alert("Código incorrecto. Acción cancelada por seguridad.");
+    alert("Código incorrecto. Acción cancelada.");
     return false;
   };
 
@@ -380,16 +378,16 @@ export default function App() {
     e.preventDefault(); if(!feedbackMsg.trim()) return; setSaving(true);
     const msgLower = feedbackMsg.toLowerCase();
     let computedType = "Operación";
-    if (msgLower.includes("falla") || msgLower.includes("bug") || msgLower.includes("error") || msgLower.includes("no carga")) {
+    if (msgLower.includes("falla") || msgLower.includes("bug") || msgLower.includes("lento") || msgLower.includes("error") || msgLower.includes("no carga")) {
       computedType = "Soporte Técnico";
-    } else if (msgLower.includes("cliente") || msgLower.includes("marca") || msgLower.includes("cambio")) {
+    } else if (msgLower.includes("cliente") || msgLower.includes("marca") || msgLower.includes("brief") || msgLower.includes("cambio")) {
       computedType = "Cliente";
     }
     try { 
       await supabase.from("feedback_items").insert([{ user_name: session.user, message: `[${computedType}] ${feedbackMsg}`, status: "open" }]); 
       setFeedbackMsg(""); setFeedbackSuccess(true); setTimeout(() => setFeedbackSuccess(false), 3000); 
       await syncPipeline();
-    } catch (err) {}
+    } catch (err) { console.warn("Feedback diferido."); }
     setSaving(false);
   };
 
@@ -400,7 +398,7 @@ export default function App() {
   };
 
   const archiveProject = async (projectId, projectName) => {
-    if (!confirm(`¿Archivar la cuenta de "${projectName}"? Ya no aparecerá en el dashboard principal.`)) return; 
+    if (!confirm(`¿Estás seguro de archivar el proyecto "${projectName}"? Se removerá del panel activo.`)) return; 
     setSaving(true);
     try { 
       await supabase.from("projects").update({ status:"archived" }).eq("id", projectId); 
@@ -412,12 +410,15 @@ export default function App() {
 
   const unarchiveProject = async (projectId) => {
     setSaving(true);
-    try { await supabase.from("projects").update({ status:"active" }).eq("id", projectId); await syncPipeline(); } catch(e) { console.error(e); }
+    try {
+      await supabase.from("projects").update({ status:"active" }).eq("id", projectId);
+      await syncPipeline();
+    } catch(e) { console.error(e); }
     setSaving(false);
   };
 
   const deleteProject = async (projectId, projectName) => {
-    if (!confirm(`⚠ ALERTA: ¿Eliminar permanentemente el proyecto "${projectName}" y todas sus actividades vinculadas?`)) return;
+    if (!confirm(`⚠ ALERTA MÁXIMA: ¿Estás completamente seguro de ELIMINAR permanentemente el proyecto "${projectName}" y todas sus actividades vinculadas?`)) return;
     setSaving(true);
     try {
       await supabase.from("tasks").delete().eq("project_id", projectId);
@@ -441,8 +442,8 @@ export default function App() {
   };
 
   const deleteTeamMember = async (id) => {
-    if(!confirm("¿Eliminar este integrante?")) return; setSaving(true);
-    try { await supabase.from("team_members").delete().eq("id", id); await syncPipeline(); } catch (e) { console.error(e); }
+    if(!confirm("¿Estás seguro de eliminar este integrante?")) return; setSaving(true);
+    try { const { error } = await supabase.from("team_members").delete().eq("id", id); if (error) alert("Reasigna tareas pendientes."); await syncPipeline(); } catch (e) { console.error(e); }
     setSaving(false);
   };
 
@@ -460,20 +461,24 @@ export default function App() {
 
   const toggleAccessCode = async (id, currentStatus) => {
     setSaving(true);
-    try { await supabase.from("access_codes").update({ is_active: !currentStatus }).eq("id", id); await syncPipeline(); } catch(err) {}
+    try {
+      await supabase.from("access_codes").update({ is_active: !currentStatus }).eq("id", id);
+      await syncPipeline();
+    } catch(err) { console.error(err); }
     setSaving(false);
   };
 
   const generateDailyBriefs = () => {
     setWaBriefs({
-      Héctor: "🔥 *Versiona Daily Brief · Héctor*\n• Grabar contenido para Reels 🎬.\n• Apoyar en sesión de fotos de producto.",
-      Arturo: "📚 *Versiona Daily Brief · Arturo*\n• Cerrar propuesta y estrategia comercial 🚀.\n• Revisar reportes de pauta en Meta Ads.",
+      Héctor: "🔥 *Versiona Daily Brief · Héctor*\n• Terminar el 4to video para pauta de contenido 🎬.\n• Modificar flyers promocionales.",
+      Arturo: "📚 *Versiona Daily Brief · Arturo*\n• Cerrar propuesta de sesión en locación 🚀.\n• Revisar reportes de pauta en Meta Ads.",
       Diego: "🧠 *Versiona Daily Brief · Diego*\n• Monitorear despliegue de Dashboard OS.\n• Revisar mesa de control del equipo."
     });
   };
 
   // ── DATA ENGINE DERIVADA ──
   const isAdmin         = session.role === "admin" || session.role === "superadmin";
+  const isSuperAdmin    = session.role === "superadmin";
   const adminProjects   = clients.filter(c => (c.type==="admin" || c.name.toLowerCase().includes("admin")) && c.dbStatus !== "archived");
   const regularProjects = clients.filter(c => !adminProjects.some(a=>a.id===c.id) && c.dbStatus !== "archived");
   const activeProjects  = regularProjects.filter(c => c.tasks && c.tasks.some(t => t.state !== "done" && t.state !== "archived"));
@@ -510,7 +515,7 @@ export default function App() {
   const timeStr = now.toLocaleDateString("es-MX", { weekday:"short", day:"2-digit", month:"short" }) + " · " + now.toLocaleTimeString("es-MX", { hour:"2-digit", minute:"2-digit" }); 
   const inpStyle = { background:thm.inputBg, border:`1px solid ${thm.border}`, borderRadius:8, color:thm.text, fontSize:12, padding:"9px 12px", outline:"none" };
 
-  // CÁLCULO DE GRÁFICA DE PASTEL (TEAM TAB)
+  // CALCULO COMPACTO DE LA GRAFICA DE PASTEL POR COLOR SIN TEXTO EXTERNO
   const pieGradientParts = totalActiveTasksGlobal === 0 
     ? "#4ade80 0% 100%" 
     : teamMembers.map((m) => {
@@ -525,30 +530,47 @@ export default function App() {
         return acc;
       }, { strings: [], currSum: 0 }).strings.join(", ");
 
-  // ── SCREEN RENDER ──
+  // ── PANTALLA LOGIN SEMILLA RESTAURADA AL MODELO PREMIUM ORIGINAL ──
   if (!session.loggedIn) {
     const currentDate = now.toLocaleDateString("es-MX", { weekday:"long", day:"2-digit", month:"long", year:"numeric" });
     return (
       <div style={{ height:"100vh", background:thm.bg, display:"flex", alignItems:"center", justifyContent:"center", padding:20, fontFamily:font }}>
-        <form onSubmit={handleLogin} className="fade-up" style={{ background:thm.surface, padding:40, borderRadius:16, border:`1px solid ${thm.border}`, width:"100%", maxWidth:360, textAlign:"center" }}>
-          <div className="font-serif" style={{ fontSize:26, marginBottom:6, color:"#eef0f3" }}>VERSIONA<span style={{ color:"#F47920" }}>O</span><span style={{ color:"#29ABE2", fontStyle:"italic" }}>S</span></div>
-          <div style={{ fontSize:10, color:thm.textMuted, letterSpacing:2, marginBottom:6, textTransform:"uppercase" }}>Workspace de Producción</div>
-          <div style={{ fontSize:11, color:thm.textMuted, marginBottom:32, textTransform:"capitalize" }}>{currentDate}</div>
-          <div style={{ position:"relative", marginBottom:10 }}>
-            <input type={showPass ? "text" : "password"} value={accessCode} onChange={e => setAccessCode(e.target.value)} placeholder="Código de acceso al equipo" autoFocus style={{ width:"100%", background:thm.inputBg, border:`1px solid ${loginError?"#f87171":thm.border}`, borderRadius:8, padding:"12px 40px 12px 12px", color:thm.text, fontSize:14, outline:"none", textAlign:"center", letterSpacing:2 }}/>
-            <button type="button" className="eye-btn" onClick={() => setShowPass(p=>!p)}>{showPass ? "🙈" : "👁"}</button>
+        <div className="fade-up" style={{ background:thm.surface, padding:"40px 36px", borderRadius:16, border:`1px solid ${thm.border}`, width:"100%", maxWidth:400, textAlign:"center", boxShadow:"0 20px 40px rgba(0,0,0,0.5)" }}>
+          <div className="font-serif" style={{ fontSize:32, marginBottom:10, color:"#eef0f3", letterSpacing:"1px" }}>VERSIONA<span style={{ color:"#F47920" }}>O</span><span style={{ color:"#29ABE2", fontStyle:"italic" }}>S</span></div>
+          <div style={{ fontSize:10, color:thm.textMuted, letterSpacing:2, marginBottom:12, textTransform:"uppercase", fontWeight:700 }}>Workspace de Producción</div>
+          <div style={{ fontSize:12, color:thm.textSub, marginBottom:32, textTransform:"capitalize" }}>{currentDate}</div>
+          
+          <form onSubmit={handleLogin} style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            <div style={{ position:"relative" }}>
+              <input 
+                type={showPass ? "text" : "password"} 
+                value={accessCode} 
+                onChange={e => setAccessCode(e.target.value)} 
+                placeholder="Código de acceso" 
+                autoFocus 
+                style={{ width:"100%", background:thm.inputBg, border:`1px solid ${loginError?"#f87171":thm.border}`, borderRadius:8, padding:"14px 44px 14px 16px", color:thm.text, fontSize:14, outline:"none", letterSpacing:"2px" }}
+              />
+              <button type="button" className="eye-btn" onClick={() => setShowPass(p=>!p)} style={{ position:"absolute", right:"14px", top:"50%", transform:"translateY(-50%)", background:"none", border:"none", cursor:"pointer", color:thm.textMuted, fontSize:16 }}>
+                {showPass ? "🙈" : "👁"}
+              </button>
+            </div>
+            
+            {loginError && <div style={{ fontSize:11, color:"#f87171", fontWeight:700, letterSpacing:"1px", textAlign:"center", marginTop:"4px" }}>CÓDIGO INVÁLIDO</div>}
+            
+            <button type="submit" style={{ width:"100%", background:"#eef0f3", color:"#080a0e", border:"none", borderRadius:8, padding:"14px", fontSize:12, fontWeight:700, cursor:"pointer", letterSpacing:"1px", textTransform:"uppercase", transition:"all 0.15s ease", marginTop:"6px" }}>Acceder al Flujo</button>
+          </form>
+          
+          <div style={{ marginTop:24, fontSize:11, color:thm.textMuted }}>
+            ¿Sin código? → <a href="mailto:contacto.diegobeltran@gmail.com?subject=Acceso Versiona OS" style={{ color:"#F47920", textDecoration:"none", fontWeight:700 }}>Solicitar al admin</a>
           </div>
-          {loginError && <div style={{ fontSize:11, color:"#f87171", marginBottom:12, fontWeight:700 }}>CÓDIGO INVÁLIDO</div>}
-          <button type="submit" style={{ width:"100%", background:thm.text, color:thm.bg, border:"none", borderRadius:8, padding:12, fontSize:12, fontWeight:700, cursor:"pointer", letterSpacing:1, textTransform:"uppercase" }}>Acceder al Flujo</button>
-        </form>
+        </div>
       </div>
     );
   }
 
-  if (!loaded) return <div style={{ height:"100vh", background:thm.bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16, fontFamily:font }}><div className="font-serif" style={{ fontSize:22, color:thm.text }}>VERSIONA<span style={{ color:"#F47920" }}>O</span><span style={{ color:"#29ABE2", fontStyle:"italic" }}>S</span></div><div className="pulse" style={{ fontSize:11, color:thm.textMuted, letterSpacing:2 }}>SINCRONIZANDO MATRIZ</div></div>;
-
   return (
     <div style={{ minHeight:"100vh", background:thm.bg, color:thm.text, display:"flex", flexDirection:"column", fontFamily:font }}>
+      {/* ── HEADER MASTER NAV ── */}
       <div style={{ borderBottom:`1px solid ${thm.border}`, padding:"0 24px", display:"flex", alignItems:"center", height:60, flexShrink:0, background:thm.navBg, gap:16 }}>
         <div className="font-serif" style={{ fontSize:19, letterSpacing:.5, flexShrink:0 }}>VERSIONA<span style={{ color:"#F47920" }}>O</span><span style={{ color:"#29ABE2", fontStyle:"italic" }}>S</span></div>
         <div style={{ display:"flex", gap:3, background:thm.surfaceTop, borderRadius:8, padding:3, overflowX:"auto", flex:1, maxWidth:850 }}>
@@ -559,7 +581,9 @@ export default function App() {
           {navBtn("blocked", `Pausas (${allBlock})`)}
           {navBtn("feedback", "⚙ Soporte")}
           {isAdmin && navBtn("completadas", "✓ Análisis Semanal")}
-          {isAdmin && navBtn("admin-utils", "Configuraciones",  "#F47920")}
+          
+          {/* CAMBIO 2: SÓLO EL ROLES 'superadmin' PUEDEN VER E INGRESAR A CONFIGURACIONES */}
+          {isSuperAdmin && navBtn("admin-utils", "Configuraciones",  "#F47920")}
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:12, marginLeft:"auto", flexShrink:0 }}>
           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
@@ -573,6 +597,7 @@ export default function App() {
         </div>
       </div>
 
+      {/* KPIs STRIP */}
       <div style={{ display:"flex", borderBottom:`1px solid ${thm.border}`, flexShrink:0, background:thm.navBg }}>
         {[{ l:"Activas", v:allPend, c:thm.text }, { l:"Bloqueadas", v:allBlock, c:allBlock>0?"#f87171":thm.textMuted }, { l:"Vencidas", v:allOver, c:allOver>0?"#facc15":thm.textMuted }, { l:"Listas", v:allDone.length, c:"#4ade80" }].map((k,i) => (
           <div key={i} style={{ flex:1, padding:"10px 8px", textAlign:"center", borderRight:i<3?`1px solid ${thm.border}`:"none" }}>
@@ -584,6 +609,7 @@ export default function App() {
 
       <div style={{ flex:1, display:"flex", overflow:"hidden" }}>
         
+        {/* ══ DASHBOARD PRINCIPAL ══ */}
         {view === "dashboard" && (
           <>
             <div style={{ width:240, borderRight:`1px solid ${thm.border}`, background:thm.surface, overflowY:"auto", flexShrink:0, display:"flex", flexDirection:"column" }}>
@@ -677,6 +703,7 @@ export default function App() {
           </>
         )}
 
+        {/* ══ VIEW: CATALOGO DE SERVICIOS POR TIPO ══ */}
         {view === "servicios" && isAdmin && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg, maxWidth:850, margin:"0 auto", width:"100%" }}>
             <h2 className="font-serif" style={{ fontSize:30, marginBottom:6 }}>📋 Servicios</h2>
@@ -719,6 +746,7 @@ export default function App() {
           </div>
         )}
 
+        {/* ══ VIEW: FEEDBACK LOOP / SOPORTE INTELLIGENT BUZÓN ══ */}
         {view === "feedback" && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg, maxWidth:isAdmin ? 800 : 600, margin:"0 auto", width:"100%" }}>
             {isAdmin ? (
@@ -760,6 +788,7 @@ export default function App() {
           </div>
         )}
 
+        {/* ══ VIEW: PAUSAS ACTIVAS ══ */}
         {view === "blocked" && (
           <div style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg, display:"flex", flexDirection:"column", gap:8 }}>
             <h2 className="font-serif" style={{ fontSize:28, color:"#f87171", margin:"0 0 12px 0" }}>⊘ Contenidos Pausados</h2>
@@ -775,6 +804,7 @@ export default function App() {
           </div>
         )}
 
+        {/* ══ VIEW: EQUIPO (GRÁFICA DE PASTEL DINÁMICA POR COLOR) ══ */}
         {(view === "team" || view === "equipo") && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"22px", background:thm.bg }}>
             <div style={{ display: "flex", justifyContent: "center", marginBottom: 36 }}>
@@ -815,6 +845,7 @@ export default function App() {
           </div>
         )}
 
+        {/* ══ VIEW: COMPLETADAS / ANÁLISIS SEMANAL (EXCLUSIVO ADMIN) ══ */}
         {view === "completadas" && isAdmin && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg, width:"100%" }}>
             <h2 className="font-serif" style={{ fontSize:32, margin:"0 0 4px 0" }}>📊 Análisis Semanal</h2>
@@ -899,8 +930,8 @@ export default function App() {
           </div>
         )}
 
-        {/* ══ VIEW: CONFIGURACIONES (MÓDULOS ADMIN CONTROL PANELS) ══ */}
-        {view === "admin-utils" && isAdmin && (
+        {/* ══ VIEW: CONFIGURACIONES (MÓDULOS ADMIN CONTROL PANELS) - ACCESO RESTRINGIDO A SUPERADMIN ══ */}
+        {view === "admin-utils" && isSuperAdmin && (
           <div className="fade-up" style={{ flex:1, overflowY:"auto", padding:"32px 40px", background:thm.bg }}>
             <h2 className="font-serif" style={{ margin:"0 0 8px 0", fontSize:30 }}>⚙ Configuración del Flujo Matrix</h2>
             <p style={{ fontSize:13, color:thm.textSub, marginBottom:28 }}>Panel maestro administrativo central.</p>
@@ -997,4 +1028,4 @@ export default function App() {
       </div>
     </div>
   );
-} 
+}
